@@ -1,0 +1,32 @@
+# Build results
+bin/
+obj/
+out/
+publish/
+artifacts/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# IDE settings
+.vs/
+.idea/
+.vscode/
+*.DotSettings.user
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.cache
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini

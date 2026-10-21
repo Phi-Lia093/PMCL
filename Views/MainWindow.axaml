@@ -1,0 +1,213 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PMCL.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="800"
+        x:Class="PMCL.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="PMCL - Philia093's MineCraft Launcher"
+        Width="1240" Height="800"
+        MinWidth="1000" MinHeight="660"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource AppBackgroundBrush}">
+
+    <Grid>
+        <Grid ColumnDefinitions="228,*">
+            <Border Grid.Column="0"
+                    Background="{StaticResource SidebarBrush}"
+                    BorderBrush="#1B2233"
+                    BorderThickness="0,0,1,0">
+                <Grid RowDefinitions="Auto,*,Auto" Margin="16,20">
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Border Width="38" Height="38" CornerRadius="11">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                    <GradientStop Color="#8F73FF" Offset="0" />
+                                    <GradientStop Color="#5B3BD6" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <TextBlock Text="P"
+                                       FontSize="19"
+                                       FontWeight="Black"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel VerticalAlignment="Center" Spacing="0">
+                            <TextBlock Text="PMCL" FontSize="17" FontWeight="Bold" />
+                            <TextBlock Text="MineCraft Launcher" Classes="muted" FontSize="10" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Spacing="4" Margin="0,30,0,0">
+                        <TextBlock Text="导航" Classes="muted"
+                                   Margin="12,0,0,8"
+                                   FontSize="10"
+                                   FontWeight="Bold" />
+
+                        <Button Classes="nav" Classes.active="{Binding IsHomeSelected}"
+                                Command="{Binding NavigateHomeCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="◈" FontSize="15" VerticalAlignment="Center" />
+                                <TextBlock Text="主页" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="nav" Classes.active="{Binding IsVersionsSelected}"
+                                Command="{Binding NavigateVersionsCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="▤" FontSize="15" VerticalAlignment="Center" />
+                                <TextBlock Text="版本库" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="nav" Classes.active="{Binding IsAccountSelected}"
+                                Command="{Binding NavigateAccountCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="☺" FontSize="15" VerticalAlignment="Center" />
+                                <TextBlock Text="账户" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
+                        <Button Classes="nav" Classes.active="{Binding IsSettingsSelected}"
+                                Command="{Binding NavigateSettingsCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="⚙" FontSize="15" VerticalAlignment="Center" />
+                                <TextBlock Text="设置" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="2"
+                               Text="{Binding AppVersionText}"
+                               Classes="muted"
+                               FontSize="10" />
+                </Grid>
+            </Border>
+
+            <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto">
+                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="24,18,24,10">
+                    <StackPanel VerticalAlignment="Center" Spacing="2">
+                        <TextBlock Text="{Binding PageTitle}"
+                                   FontSize="19"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding PageSubtitle}"
+                                   Classes="muted" />
+                    </StackPanel>
+
+                    <Button Grid.Column="1"
+                            Classes="ghost"
+                            Padding="8"
+                            VerticalAlignment="Center"
+                            Command="{Binding NavigateAccountCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Width="32" Height="32" CornerRadius="16"
+                                    Background="{StaticResource AccentBrush}">
+                                <TextBlock Text="{Binding Session.AccountInitial}"
+                                           FontSize="13"
+                                           FontWeight="Bold"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel VerticalAlignment="Center" Spacing="0" Margin="0,0,6,0">
+                                <TextBlock Text="{Binding Session.AccountName}"
+                                           FontSize="12"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Session.AccountKindLabel}"
+                                           Classes="muted"
+                                           FontSize="10" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <Border Grid.Row="1"
+                        Classes="card"
+                        Background="#1C1520"
+                        BorderBrush="#432432"
+                        Padding="14"
+                        Margin="24,0,24,10"
+                        IsVisible="{Binding Session.HasError}">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <TextBlock Text="!"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource DangerBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,10,0" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Session.LastError}"
+                                   Foreground="#FFD5DA"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center" />
+                        <Button Grid.Column="2"
+                                Classes="ghost"
+                                Padding="8,2"
+                                Content="关闭"
+                                Command="{Binding Session.ClearErrorCommand}" />
+                    </Grid>
+                </Border>
+
+                <ContentControl Grid.Row="2"
+                                Content="{Binding CurrentPage}"
+                                Margin="24,4,24,12" />
+
+                <Border Grid.Row="3"
+                        BorderBrush="#1B2233"
+                        BorderThickness="0,1,0,0"
+                        Padding="24,10">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Ellipse Width="7" Height="7"
+                                     Fill="{StaticResource SuccessBrush}"
+                                     IsVisible="{Binding !Session.HasError}"
+                                     VerticalAlignment="Center" />
+                            <Ellipse Width="7" Height="7"
+                                     Fill="{StaticResource DangerBrush}"
+                                     IsVisible="{Binding Session.HasError}"
+                                     VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Session.StatusMessage}"
+                                       Classes="muted"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="1"
+                                   Text="原版下载 · Microsoft 登录 · 自动安装"
+                                   Classes="muted"
+                                   FontSize="10"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <Border Background="#C4070A10"
+                IsVisible="{Binding Session.IsBusy}">
+            <Border Classes="card"
+                    Width="430"
+                    Padding="26"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="正在处理" Classes="h2" />
+                        <TextBlock Text="{Binding Session.StatusMessage}"
+                                   Classes="muted"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ProgressBar Minimum="0" Maximum="1"
+                                 Value="{Binding Session.Progress}"
+                                 IsIndeterminate="{Binding Session.IsProgressIndeterminate}" />
+                    <TextBlock Text="请保持网络连接，下载完成前不要关闭启动器。"
+                               Classes="muted"
+                               FontSize="10" />
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+
+
+
+</Window>

@@ -1,0 +1,134 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PMCL.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="700"
+             x:Class="PMCL.Views.VersionsView"
+             x:DataType="vm:VersionsViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="ListBox">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#161E2C" />
+        </Style>
+        <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1B1F38" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*">
+        <StackPanel Grid.Row="0" Spacing="14" Margin="0,0,6,14">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="{Binding Summary}"
+                           Classes="muted"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="1"
+                        Classes="secondary"
+                        Content="刷新列表"
+                        Command="{Binding RefreshCommand}"
+                        IsEnabled="{Binding !Session.IsLoadingVersions}" />
+            </Grid>
+
+            <Border Classes="card" Padding="16">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                    <TextBox Grid.Column="0"
+                             PlaceholderText="搜索版本名称，例如 1.21"
+                             Text="{Binding SearchText}" />
+                    <ComboBox Grid.Column="1"
+                              ItemsSource="{Binding TypeFilters}"
+                              SelectedIndex="{Binding SelectedTypeIndex}"
+                              MinWidth="130" />
+                    <CheckBox Grid.Column="2"
+                              Content="仅显示已安装"
+                              IsChecked="{Binding ShowInstalledOnly}"
+                              VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+        </StackPanel>
+
+        <ListBox Grid.Row="2"
+                 ItemsSource="{Binding Items}"
+                 SelectedItem="{Binding SelectedItem}">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:VersionItemViewModel">
+                    <Border Classes="card"
+                            CornerRadius="14"
+                            Padding="16,14"
+                            Margin="0,0,6,0">
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="14">
+                            <Border Width="44" Height="44"
+                                    CornerRadius="12"
+                                    Background="{StaticResource AccentSoftBrush}"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="M"
+                                           FontSize="18"
+                                           FontWeight="Black"
+                                           Foreground="#C3B5FF"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{Binding Version.Name}"
+                                               FontSize="15"
+                                               FontWeight="SemiBold" />
+                                    <Border Background="#1B2233"
+                                            CornerRadius="6"
+                                            Padding="7,2"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Version.TypeLabel}"
+                                                   FontSize="10"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Version.ReleaseDateText}"
+                                           Classes="muted" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="3"
+                                        HorizontalAlignment="Right">
+                                <TextBlock Text="{Binding StatusLabel}"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource SuccessBrush}"
+                                           HorizontalAlignment="Right"
+                                           IsVisible="{Binding Version.IsInstalled}" />
+                                <TextBlock Text="{Binding StatusLabel}"
+                                           FontSize="12"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           HorizontalAlignment="Right"
+                                           IsVisible="{Binding !Version.IsInstalled}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8"
+                                        VerticalAlignment="Center">
+                                <Button Classes="secondary"
+                                        Padding="14,8"
+                                        Content="{Binding InstallLabel}"
+                                        Command="{Binding InstallCommand}" />
+                                <Button Classes="primary"
+                                        Padding="18,8"
+                                        Content="启动"
+                                        Command="{Binding LaunchCommand}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </Grid>
+</UserControl>
+

@@ -1,0 +1,168 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PMCL.ViewModels"
+             xmlns:models="using:PMCL.Models"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="700"
+             x:Class="PMCL.Views.HomeView"
+             x:DataType="vm:HomeViewModel">
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="16" Margin="0,0,6,16">
+
+            <Border CornerRadius="18" Padding="28" ClipToBounds="True">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#2C1F63" Offset="0" />
+                        <GradientStop Color="#131926" Offset="0.62" />
+                        <GradientStop Color="#131926" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="12">
+                        <TextBlock Text="MINECRAFT JAVA EDITION"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   LetterSpacing="2.5"
+                                   Foreground="#B9A9FF" />
+                        <TextBlock Text="开启你的方块世界"
+                                   Classes="h1"
+                                   FontSize="32" />
+                        <TextBlock Text="一键下载原版游戏、管理账户与 Java 环境，随时进入世界。"
+                                   Classes="muted"
+                                   FontSize="13"
+                                   MaxWidth="460"
+                                   TextWrapping="Wrap" />
+
+                        <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0" MaxWidth="560"
+                              HorizontalAlignment="Left">
+                            <ComboBox Grid.Column="0"
+                                      ItemsSource="{Binding Session.ReleaseVersions}"
+                                      SelectedItem="{Binding Session.SelectedVersion}"
+                                      MinWidth="220"
+                                      HorizontalAlignment="Stretch"
+                                      IsEnabled="{Binding !Session.IsBusy}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="models:GameVersion">
+                                        <TextBlock Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Button Grid.Column="1"
+                                    Classes="primary"
+                                    Margin="10,0,0,0"
+                                    Padding="30,12"
+                                    FontSize="15"
+                                    Content="▶  开始游戏"
+                                    Command="{Binding LaunchCommand}"
+                                    IsEnabled="{Binding !Session.IsBusy}" />
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Classes="secondary"
+                                    Content="下载当前版本"
+                                    Command="{Binding InstallCommand}"
+                                    IsEnabled="{Binding !Session.IsBusy}" />
+                            <TextBlock Classes="muted"
+                                       VerticalAlignment="Center"
+                                       Text="{Binding Session.SelectedVersionName}" />
+                        </StackPanel>
+
+                        <Border IsVisible="{Binding !Session.VersionsLoaded}"
+                                Background="#1F1A33"
+                                CornerRadius="10"
+                                Padding="12"
+                                MaxWidth="560"
+                                HorizontalAlignment="Left">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="版本列表尚未加载，请检查网络后重试。"
+                                           Classes="muted"
+                                           VerticalAlignment="Center" />
+                                <Button Classes="ghost"
+                                        Padding="10,4"
+                                        Content="重新加载"
+                                        Command="{Binding RefreshVersionsCommand}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <TextBlock Grid.Column="1"
+                               Text="PMCL"
+                               FontSize="86"
+                               FontWeight="Black"
+                               Foreground="#22FFFFFF"
+                               VerticalAlignment="Bottom"
+                               Margin="0,0,0,-18" />
+                </Grid>
+            </Border>
+
+            <Grid ColumnDefinitions="1.7*,1*">
+                <Border Grid.Column="0" Classes="card" Margin="0,0,8,0">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="当前账户" Classes="h2" FontSize="16" />
+                        <Grid ColumnDefinitions="Auto,*">
+                            <Border Width="52" Height="52"
+                                    CornerRadius="26"
+                                    Background="{StaticResource AccentBrush}"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Session.AccountInitial}"
+                                           FontSize="20"
+                                           FontWeight="Bold"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="3">
+                                <TextBlock Text="{Binding Session.AccountName}"
+                                           FontSize="18"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Session.AccountKindLabel}" Classes="muted" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="Microsoft 正版账户与离线账户都可用于启动游戏。离线账户仅适用于单人和局域网。"
+                                   Classes="muted"
+                                   TextWrapping="Wrap" />
+                        <Button Classes="secondary"
+                                HorizontalAlignment="Left"
+                                Content="登录 / 切换账户"
+                                Command="{Binding OpenAccountCommand}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Classes="card" Margin="8,0,0,0">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="运行环境" Classes="h2" FontSize="16" />
+
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="Java" Classes="label" Margin="0" />
+                            <TextBlock Text="{Binding Session.JavaSummary}"
+                                       FontSize="13"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="内存上限" Classes="label" Margin="0" />
+                            <TextBlock Text="{Binding Session.Settings.MaximumRamMb}"
+                                       FontSize="13" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="游戏目录" Classes="label" Margin="0" />
+                            <TextBlock Text="{Binding Session.Settings.GameDirectory}"
+                                       Classes="muted"
+                                       TextWrapping="Wrap"
+                                       MaxLines="2" />
+                        </StackPanel>
+
+                        <TextBlock Text="可在「设置」中调整内存、窗口与 Java 路径。"
+                                   Classes="muted"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
+

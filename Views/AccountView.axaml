@@ -1,0 +1,165 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PMCL.ViewModels"
+             xmlns:models="using:PMCL.Models"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="700"
+             x:Class="PMCL.Views.AccountView"
+             x:DataType="vm:AccountViewModel">
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="16" Margin="0,0,6,16">
+
+            <Border Classes="card">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Border Width="58" Height="58"
+                            CornerRadius="29"
+                            Background="{StaticResource AccentBrush}"
+                            VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Session.AccountInitial}"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center" Spacing="3">
+                        <TextBlock Text="{Binding Session.AccountName}"
+                                   FontSize="20"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Session.AccountKindLabel}" Classes="muted" />
+                    </StackPanel>
+                    <Button Grid.Column="2"
+                            Classes="secondary"
+                            Content="退出登录"
+                            VerticalAlignment="Center"
+                            IsVisible="{Binding Session.HasAccount}"
+                            Command="{Binding SignoutCommand}" />
+                </Grid>
+            </Border>
+
+            <Grid ColumnDefinitions="1*,1*" ColumnSpacing="16">
+                <Border Grid.Column="0" Classes="card">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Width="34" Height="34" CornerRadius="9" Background="#1B3A5C">
+                                <TextBlock Text="MS"
+                                           FontSize="12"
+                                           FontWeight="Bold"
+                                           Foreground="#7FC4FF"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="Microsoft 账户"
+                                       Classes="h2"
+                                       FontSize="16"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="通过微软官方 OAuth 登录，可访问正版服务器与 Realms。登录过程会在系统浏览器或 WebView2 窗口中完成。"
+                                   Classes="muted"
+                                   TextWrapping="Wrap" />
+                        <Button Classes="primary"
+                                HorizontalAlignment="Left"
+                                Content="使用 Microsoft 登录"
+                                Margin="0,6,0,0"
+                                IsEnabled="{Binding !Session.IsBusy}"
+                                Command="{Binding LoginMicrosoftCommand}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Classes="card">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Border Width="34" Height="34" CornerRadius="9" Background="#1E3A2A">
+                                <TextBlock Text="OFF"
+                                           FontSize="11"
+                                           FontWeight="Bold"
+                                           Foreground="#7CE0A6"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="离线账户"
+                                       Classes="h2"
+                                       FontSize="16"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock Text="无需网络验证，仅适用于单人与局域网游戏。用户名长度为 3 - 16 个字符。"
+                                   Classes="muted"
+                                   TextWrapping="Wrap" />
+                        <TextBox PlaceholderText="输入离线用户名"
+                                 Text="{Binding OfflineUsername}"
+                                 MaxLength="16" />
+                        <Button Classes="secondary"
+                                HorizontalAlignment="Left"
+                                Content="使用离线账户"
+                                IsEnabled="{Binding !Session.IsBusy}"
+                                Command="{Binding LoginOfflineCommand}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Classes="card">
+                <StackPanel Spacing="12">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="已保存的 Microsoft 账户"
+                                       Classes="h2"
+                                       FontSize="16" />
+                            <TextBlock Text="选择账户后可直接复用缓存的登录凭据。"
+                                       Classes="muted" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Classes="ghost"
+                                Content="刷新"
+                                VerticalAlignment="Center"
+                                Command="{Binding RefreshSavedAccountsCommand}" />
+                    </Grid>
+
+                    <TextBlock Text="暂无缓存的 Microsoft 账户。"
+                               Classes="muted"
+                               IsVisible="{Binding !HasSavedAccounts}" />
+
+                    <ListBox ItemsSource="{Binding Session.SavedAccounts}"
+                             SelectedItem="{Binding SelectedSavedAccount}"
+                             IsVisible="{Binding HasSavedAccounts}"
+                             MaxHeight="190">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="models:SavedMicrosoftAccount">
+                                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12" Margin="2">
+                                    <Border Width="36" Height="36"
+                                            CornerRadius="18"
+                                            Background="#1B2233">
+                                        <TextBlock Text="{Binding Initial}"
+                                                   FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <TextBlock Text="{Binding Username}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Uuid}"
+                                                   Classes="muted"
+                                                   MaxLines="1"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding LastAccessText}"
+                                               Classes="muted"
+                                               VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <Button Classes="secondary"
+                            HorizontalAlignment="Left"
+                            Content="使用选中的账户"
+                            IsEnabled="{Binding !Session.IsBusy}"
+                            Command="{Binding UseSavedAccountCommand}"
+                            CommandParameter="{Binding SelectedSavedAccount}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
+
