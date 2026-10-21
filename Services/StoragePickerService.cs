@@ -51,4 +51,33 @@ public sealed class StoragePickerService
 
         return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
+
+    public async Task<string?> PickSaveFileAsync(
+        string title,
+        string suggestedFileName,
+        string defaultExtension,
+        string fileTypeName,
+        params string[] patterns)
+    {
+        var window = _windowProvider();
+        if (window?.StorageProvider is not { CanSave: true } storage)
+            return null;
+
+        var file = await storage.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = title,
+            SuggestedFileName = suggestedFileName,
+            DefaultExtension = defaultExtension,
+            ShowOverwritePrompt = true,
+            FileTypeChoices = new[]
+            {
+                new FilePickerFileType(fileTypeName)
+                {
+                    Patterns = patterns
+                }
+            }
+        });
+
+        return file?.TryGetLocalPath();
+    }
 }

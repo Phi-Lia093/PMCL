@@ -92,6 +92,18 @@
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
             <Setter Property="BorderThickness" Value="0" />
         </Style>
+        <Style Selector="Button.danger">
+            <Setter Property="Background" Value="{StaticResource DangerBrush}" />
+            <Setter Property="Foreground" Value="#2A0810" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.danger:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#FF95A2" />
+            <Setter Property="Foreground" Value="#2A0810" />
+        </Style>
+        <Style Selector="Button.danger:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#E35E70" />
+        </Style>
         <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="#161E2C" />
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />

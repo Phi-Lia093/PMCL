@@ -15,11 +15,12 @@ public sealed partial class GameVersion : ObservableObject
         IsInstalled = isInstalled;
     }
 
-    public string Name { get; }
-
     public string Type { get; }
 
     public DateTimeOffset ReleaseTime { get; }
+
+    [ObservableProperty]
+    public partial string Name { get; set; }
 
     [ObservableProperty]
     public partial bool IsInstalled { get; set; }

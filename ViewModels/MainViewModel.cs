@@ -18,7 +18,8 @@ public sealed partial class MainViewModel : ViewModelBase
         AuthenticationService authentication,
         SettingsService settingsService,
         MinecraftService minecraft,
-        StoragePickerService picker)
+        StoragePickerService picker,
+        AppPaths paths)
     {
         Session = session;
         _authentication = authentication;
@@ -26,9 +27,22 @@ public sealed partial class MainViewModel : ViewModelBase
         var coordinator = new GameLaunchCoordinator(minecraft, settingsService);
 
         Account = new AccountViewModel(session, authentication, settingsService);
-        Home = new HomeViewModel(session, coordinator, RefreshVersionsAsync, () => CurrentPage = Account);
+        VersionSettings = new VersionSettingsViewModel(
+            session,
+            coordinator,
+            settingsService,
+            minecraft,
+            picker,
+            RefreshVersionsAsync,
+            NavigateHome);
+        Home = new HomeViewModel(
+            session,
+            coordinator,
+            RefreshVersionsAsync,
+            () => CurrentPage = Account,
+            OpenVersionSettings);
         Versions = new VersionsViewModel(session, coordinator, RefreshVersionsAsync);
-        Settings = new SettingsViewModel(session, settingsService, picker, minecraft, RefreshVersionsAsync);
+        Settings = new SettingsViewModel(session, settingsService, picker, paths, RefreshVersionsAsync);
 
         CurrentPage = Home;
     }
@@ -43,10 +57,13 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public SettingsViewModel Settings { get; }
 
+    public VersionSettingsViewModel VersionSettings { get; }
+
     [ObservableProperty]
     public partial ViewModelBase CurrentPage { get; set; }
 
-    public bool IsHomeSelected => ReferenceEquals(CurrentPage, Home);
+    public bool IsHomeSelected => ReferenceEquals(CurrentPage, Home)
+                                  || ReferenceEquals(CurrentPage, VersionSettings);
 
     public bool IsVersionsSelected => ReferenceEquals(CurrentPage, Versions);
 
@@ -59,7 +76,8 @@ public sealed partial class MainViewModel : ViewModelBase
         HomeViewModel => "主页",
         VersionsViewModel => "版本库",
         AccountViewModel => "账户",
-        SettingsViewModel => "设置",
+        SettingsViewModel => "全局设置",
+        VersionSettingsViewModel => "版本设置",
         _ => "PMCL"
     };
 
@@ -68,7 +86,8 @@ public sealed partial class MainViewModel : ViewModelBase
         HomeViewModel => "欢迎使用 PMCL，准备好开始游戏了吗？",
         VersionsViewModel => "浏览 Mojang 官方版本，下载后即可在主页启动。",
         AccountViewModel => "使用 Microsoft 正版账户，或创建本地离线账户。",
-        SettingsViewModel => "调整游戏目录、Java 运行环境与内存分配。",
+        SettingsViewModel => "管理游戏目录、界面语言与启动器数据。",
+        VersionSettingsViewModel => "为此版本单独配置 Java、内存、登录方式与启动参数。",
         _ => "Philia093's MineCraft Launcher"
     };
 
@@ -94,11 +113,10 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             var versions = await _minecraft.GetVersionsAsync(Session.Settings.GameDirectory);
             Session.ApplyVersions(versions);
+            Session.EnsureInstalledSelection();
             Session.VersionsLoaded = true;
-            Session.DetectedJavaPath = _minecraft.TryGetDefaultJavaPath(Session.Settings.GameDirectory);
-            Session.NotifyJavaSummaryChanged();
             Versions.RebuildFromSession();
-            Session.SetStatus($"已加载 {versions.Count} 个 Minecraft 版本");
+            Session.SetStatus($"已加载 {versions.Count} 个 Minecraft 版本，本地已安装 {Session.InstalledVersions.Count} 个");
         }
         catch (Exception ex)
         {
@@ -111,17 +129,45 @@ public sealed partial class MainViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
-    private void NavigateHome() => CurrentPage = Home;
+    public void FlushPendingSettings() => VersionSettings.Flush();
 
     [RelayCommand]
-    private void NavigateVersions() => CurrentPage = Versions;
+    private void NavigateHome()
+    {
+        VersionSettings.Flush();
+        Session.EnsureInstalledSelection();
+        CurrentPage = Home;
+    }
+
+    private void OpenVersionSettings(GameVersion version)
+    {
+        if (!version.IsInstalled)
+            return;
+
+        VersionSettings.Open(version);
+        CurrentPage = VersionSettings;
+    }
 
     [RelayCommand]
-    private void NavigateAccount() => CurrentPage = Account;
+    private void NavigateVersions()
+    {
+        VersionSettings.Flush();
+        CurrentPage = Versions;
+    }
 
     [RelayCommand]
-    private void NavigateSettings() => CurrentPage = Settings;
+    private void NavigateAccount()
+    {
+        VersionSettings.Flush();
+        CurrentPage = Account;
+    }
+
+    [RelayCommand]
+    private void NavigateSettings()
+    {
+        VersionSettings.Flush();
+        CurrentPage = Settings;
+    }
 
     private async Task RestoreAccountAsync()
     {

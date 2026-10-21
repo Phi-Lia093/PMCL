@@ -28,7 +28,7 @@ public partial class App : Application
 
             MainWindow? mainWindow = null;
             var picker = new StoragePickerService(() => mainWindow);
-            var viewModel = new MainViewModel(session, authentication, settingsService, minecraft, picker);
+            var viewModel = new MainViewModel(session, authentication, settingsService, minecraft, picker, paths);
 
             var window = new MainWindow
             {
@@ -37,7 +37,11 @@ public partial class App : Application
             mainWindow = window;
 
             desktop.MainWindow = window;
-            desktop.ShutdownRequested += (_, _) => settingsService.SaveSilently(session.Settings);
+            desktop.ShutdownRequested += (_, _) =>
+            {
+                viewModel.FlushPendingSettings();
+                settingsService.SaveSilently(session.Settings);
+            };
 
             window.Opened += async (_, _) =>
             {

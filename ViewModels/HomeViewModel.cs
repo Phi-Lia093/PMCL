@@ -12,37 +12,38 @@ public sealed partial class HomeViewModel : ViewModelBase
     private readonly GameLaunchCoordinator _coordinator;
     private readonly Func<Task> _refreshVersionsAsync;
     private readonly Action _openAccount;
+    private readonly Action<GameVersion> _openVersionSettings;
 
     public HomeViewModel(
         LauncherSession session,
         GameLaunchCoordinator coordinator,
         Func<Task> refreshVersionsAsync,
-        Action openAccount)
+        Action openAccount,
+        Action<GameVersion> openVersionSettings)
     {
         Session = session;
         _coordinator = coordinator;
         _refreshVersionsAsync = refreshVersionsAsync;
         _openAccount = openAccount;
+        _openVersionSettings = openVersionSettings;
     }
 
     public LauncherSession Session { get; }
 
     [RelayCommand]
-    private Task InstallAsync()
-    {
-        var version = Session.SelectedVersion;
-        return version is null
-            ? Task.CompletedTask
-            : _coordinator.InstallAsync(Session, version);
-    }
-
-    [RelayCommand]
     private Task LaunchAsync()
     {
         var version = Session.SelectedVersion;
-        return version is null
-            ? Task.CompletedTask
-            : _coordinator.LaunchAsync(Session, version);
+        return version is { IsInstalled: true }
+            ? _coordinator.LaunchAsync(Session, version)
+            : Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private void OpenVersionSettings()
+    {
+        if (Session.SelectedVersion is { IsInstalled: true } version)
+            _openVersionSettings(version);
     }
 
     [RelayCommand]
@@ -50,6 +51,4 @@ public sealed partial class HomeViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenAccount() => _openAccount();
-
-    public void RequestInstall(GameVersion version) => _ = _coordinator.InstallAsync(Session, version);
 }
