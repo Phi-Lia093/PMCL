@@ -1,6 +1,8 @@
-using System.Net.Http.Headers;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using CmlLib.Core;
 using CmlLib.Core.Installers;
 using PMCL.Models;
@@ -37,17 +39,19 @@ public sealed record ModLoaderSelection(
 
 /// <summary>
 /// Discovers and installs Fabric, Forge, NeoForge and OptiFine layers for a
-/// vanilla Minecraft version. Forge/NeoForge use BMCLAPI metadata and mirrors,
-/// Fabric uses Fabric Meta and OptiFine uses BMCLAPI's installer mirror.
+/// vanilla Minecraft version. Official metadata and files are used by default;
+/// BMCLAPI is an optional accelerated source with automatic official fallback.
 /// </summary>
 public sealed class ModLoaderService
 {
-    private const string FabricMetaBase = "https://bmclapi2.bangbang93.com/fabric-meta";
-    private const string FabricMetaFallback = "https://meta.fabricmc.net";
-    private const string BmclApiBase = "https://bmclapi2.bangbang93.com";
-    private const string BmclMirrorBase = "https://mirror.nju.edu.cn/bmclapi";
-    private const string BmclMirrorFallback = "https://mirrors.cernet.edu.cn/bmclapi";
-    private const string ForgeMavenBase = "https://maven.minecraftforge.net";
+    private const string FabricMetaOfficial = DownloadSourceRouter.FabricMetaOfficial;
+    private const string FabricMetaMirror = DownloadSourceRouter.BmclApiBase + "/fabric-meta";
+    private const string BmclApiBase = DownloadSourceRouter.BmclApiBase;
+    private const string BmclMirrorBase = DownloadSourceRouter.BmclMavenBase;
+    private const string BmclMirrorFallback = DownloadSourceRouter.BmclMavenFallback;
+    private const string ForgeMavenBase = DownloadSourceRouter.ForgeMavenBase;
+    private const string NeoForgeMavenBase = DownloadSourceRouter.NeoForgeMavenBase;
+    private const string OptiFineBase = "https://optifine.net";
 
     private readonly MinecraftService _minecraft;
     private readonly HttpClient _catalogClient;
@@ -59,8 +63,12 @@ public sealed class ModLoaderService
     public ModLoaderService(MinecraftService minecraft)
     {
         _minecraft = minecraft;
-        _catalogClient = CreateHttpClient(TimeSpan.FromSeconds(25));
-        _downloadClient = CreateHttpClient(TimeSpan.FromMinutes(15));
+        _catalogClient = DownloadSourceRouter.CreateHttpClient(
+            () => _minecraft.DownloadSource,
+            TimeSpan.FromSeconds(25));
+        _downloadClient = DownloadSourceRouter.CreateHttpClient(
+            () => _minecraft.DownloadSource,
+            TimeSpan.FromMinutes(15));
     }
 
     public async Task<IReadOnlyList<ModLoaderCatalogEntry>> GetCatalogAsync(
@@ -68,7 +76,8 @@ public sealed class ModLoaderService
         string minecraftVersion,
         CancellationToken cancellationToken = default)
     {
-        var cacheKey = $"{Path.GetFullPath(gameDirectory)}|{minecraftVersion}";
+        var cacheKey =
+            $"{Path.GetFullPath(gameDirectory)}|{minecraftVersion}|{_minecraft.DownloadSource}";
         await _cacheLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -221,6 +230,7 @@ public sealed class ModLoaderService
                             RequireLoaderVersion(loaderVersion),
                             versionName,
                             javaPath,
+                            byteProgress,
                             cancellationToken)
                         .ConfigureAwait(false);
                     break;
@@ -260,16 +270,19 @@ public sealed class ModLoaderService
         IProgress<ByteProgress>? byteProgress,
         CancellationToken cancellationToken)
     {
-        var url = $"{FabricMetaBase}/v2/versions/loader/" +
-                  $"{Uri.EscapeDataString(minecraftVersion)}/" +
-                  $"{Uri.EscapeDataString(loaderVersion)}/profile/json";
-        var json = await GetFabricStringAsync(url, cancellationToken).ConfigureAwait(false);
+        var relative = $"/v2/versions/loader/{Uri.EscapeDataString(minecraftVersion)}/" +
+                       $"{Uri.EscapeDataString(loaderVersion)}/profile/json";
+        var json = await GetStringWithFallbackAsync(
+                GetFabricMetaUrls(relative),
+                cancellationToken)
+            .ConfigureAwait(false);
 
         if (JsonNode.Parse(json) is not JsonObject profile)
             throw new InvalidDataException("Fabric Meta 返回了无效的版本配置。");
 
         profile["id"] = versionName;
-        RewriteFabricLibraryUrls(profile);
+        if (_minecraft.DownloadSource == DownloadSourceKind.BmclApi)
+            RewriteFabricLibraryUrls(profile);
         var profileJson = profile.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
 
         await _minecraft.InstallFabricProfileAsync(
@@ -294,12 +307,12 @@ public sealed class ModLoaderService
         CancellationToken cancellationToken)
     {
         var coordinates = $"{minecraftVersion}-{loaderVersion}";
-        var installerUrl =
-            $"{BmclMirrorBase}/net/minecraftforge/forge/{coordinates}/forge-{coordinates}-installer.jar";
-        var alternateUrl =
-            $"{BmclMirrorFallback}/net/minecraftforge/forge/{coordinates}/forge-{coordinates}-installer.jar";
         var officialUrl =
             $"{ForgeMavenBase}/net/minecraftforge/forge/{coordinates}/forge-{coordinates}-installer.jar";
+        var mirrorUrl =
+            $"{BmclMirrorBase}/net/minecraftforge/forge/{coordinates}/forge-{coordinates}-installer.jar";
+        var mirrorFallbackUrl =
+            $"{BmclMirrorFallback}/net/minecraftforge/forge/{coordinates}/forge-{coordinates}-installer.jar";
         var embeddedJar = string.Equals(minecraftVersion, "1.12.2", StringComparison.Ordinal)
             ? $"maven/net/minecraftforge/forge/{coordinates}/forge-{coordinates}.jar"
             : null;
@@ -310,8 +323,9 @@ public sealed class ModLoaderService
         try
         {
             await DownloadFirstAvailableAsync(
-                    new[] { installerUrl, alternateUrl, officialUrl },
+                    OrderSourceUrls(officialUrl, mirrorUrl, mirrorFallbackUrl),
                     localInstaller,
+                    byteProgress,
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -320,14 +334,14 @@ public sealed class ModLoaderService
                     minecraftVersion,
                     loaderVersion,
                     versionName,
-                    installerUrl,
+                    officialUrl,
                     localInstaller,
                     embeddedJar,
                     javaPath,
                     fileProgress,
                     byteProgress,
                     installerOutput,
-                    DownloadMirroredFileAsync,
+                    remoteFileDownloader: null,
                     cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -349,18 +363,21 @@ public sealed class ModLoaderService
         IProgress<string>? installerOutput,
         CancellationToken cancellationToken)
     {
-        var installerUrl =
-            $"{BmclMirrorBase}/net/neoforged/neoforge/{Uri.EscapeDataString(loaderVersion)}/neoforge-{Uri.EscapeDataString(loaderVersion)}-installer.jar";
-        var alternateUrl =
-            $"{BmclMirrorFallback}/net/neoforged/neoforge/{Uri.EscapeDataString(loaderVersion)}/neoforge-{Uri.EscapeDataString(loaderVersion)}-installer.jar";
+        var relativePath =
+            $"/net/neoforged/neoforge/{Uri.EscapeDataString(loaderVersion)}/" +
+            $"neoforge-{Uri.EscapeDataString(loaderVersion)}-installer.jar";
+        var officialUrl = NeoForgeMavenBase + "/releases" + relativePath;
+        var mirrorUrl = BmclMirrorBase + relativePath;
+        var mirrorFallbackUrl = BmclMirrorFallback + relativePath;
         var tempDirectory = CreateTempDirectory("pmcl-neoforge-");
         var localInstaller = Path.Combine(tempDirectory, "neoforge-installer.jar");
 
         try
         {
             await DownloadFirstAvailableAsync(
-                    new[] { installerUrl, alternateUrl },
+                    OrderSourceUrls(officialUrl, mirrorUrl, mirrorFallbackUrl),
                     localInstaller,
+                    byteProgress,
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -369,14 +386,14 @@ public sealed class ModLoaderService
                     minecraftVersion,
                     loaderVersion,
                     versionName,
-                    installerUrl,
+                    officialUrl,
                     localInstaller,
                     embeddedVersionJar: null,
                     javaPath,
                     fileProgress,
                     byteProgress,
                     installerOutput,
-                    DownloadMirroredFileAsync,
+                    remoteFileDownloader: null,
                     cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -392,14 +409,12 @@ public sealed class ModLoaderService
         string loaderVersion,
         string versionName,
         string javaPath,
+        IProgress<ByteProgress>? byteProgress,
         CancellationToken cancellationToken)
     {
         var parts = loaderVersion.Split('|', 2);
         var type = parts.Length == 2 ? parts[0] : "HD_U";
         var patch = parts.Length == 2 ? parts[1] : parts[0];
-        var downloadUrl =
-            $"{BmclApiBase}/optifine/{Uri.EscapeDataString(minecraftVersion)}/" +
-            $"{Uri.EscapeDataString(type)}/{Uri.EscapeDataString(patch)}";
 
         var tempDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -409,7 +424,14 @@ public sealed class ModLoaderService
 
         try
         {
-            await DownloadFileAsync(downloadUrl, installerPath, cancellationToken).ConfigureAwait(false);
+            await DownloadOptiFineInstallerAsync(
+                    minecraftVersion,
+                    type,
+                    patch,
+                    installerPath,
+                    byteProgress,
+                    cancellationToken)
+                .ConfigureAwait(false);
             await _minecraft.InstallOptiFineAsync(
                     gameDirectory,
                     minecraftVersion,
@@ -433,18 +455,110 @@ public sealed class ModLoaderService
         }
     }
 
-    private async Task DownloadFileAsync(
-        string url,
+    private async Task DownloadOptiFineInstallerAsync(
+        string minecraftVersion,
+        string type,
+        string patch,
         string targetPath,
+        IProgress<ByteProgress>? byteProgress,
         CancellationToken cancellationToken)
     {
+        var fileName = $"OptiFine_{minecraftVersion}_{type}_{patch}.jar";
+        var bmclUrl =
+            $"{BmclApiBase}/optifine/{Uri.EscapeDataString(minecraftVersion)}/" +
+            $"{Uri.EscapeDataString(type)}/{Uri.EscapeDataString(patch)}";
+
+        if (_minecraft.DownloadSource == DownloadSourceKind.BmclApi)
+        {
+            try
+            {
+                await DownloadFileAsync(bmclUrl, targetPath, byteProgress, cancellationToken)
+                    .ConfigureAwait(false);
+                return;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException
+                                       || !cancellationToken.IsCancellationRequested)
+            {
+                // The official download below is the fallback.
+            }
+        }
+
+        try
+        {
+            await DownloadOptiFineOfficialAsync(
+                    fileName,
+                    targetPath,
+                    byteProgress,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+        catch (Exception ex) when (_minecraft.DownloadSource != DownloadSourceKind.BmclApi
+                                   && (ex is not OperationCanceledException
+                                       || !cancellationToken.IsCancellationRequested))
+        {
+            // Official OptiFine is unavailable; use the mirror as a last resort.
+        }
+
+        await DownloadFileAsync(bmclUrl, targetPath, byteProgress, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task DownloadOptiFineOfficialAsync(
+        string fileName,
+        string targetPath,
+        IProgress<ByteProgress>? byteProgress,
+        CancellationToken cancellationToken)
+    {
+        var adPageUrl = $"{OptiFineBase}/adloadx?f={Uri.EscapeDataString(fileName)}";
         using var response = await _downloadClient.GetAsync(
-                url,
+                adPageUrl,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken)
             .ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
+        var html = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        var match = Regex.Match(
+            html,
+            @"href\s*=\s*['""](?<url>downloadx\?[^'""]+)['""]",
+            RegexOptions.IgnoreCase);
+        if (!match.Success)
+        {
+            throw new InvalidDataException(
+                "OptiFine 官方下载页没有返回有效的下载链接。");
+        }
+
+        var relative = WebUtility.HtmlDecode(match.Groups["url"].Value);
+        var downloadUrl = new Uri(new Uri(OptiFineBase + "/"), relative).AbsoluteUri;
+        await DownloadFileAsync(
+                downloadUrl,
+                targetPath,
+                byteProgress,
+                cancellationToken,
+                adPageUrl)
+            .ConfigureAwait(false);
+    }
+
+    private async Task DownloadFileAsync(
+        string url,
+        string targetPath,
+        IProgress<ByteProgress>? byteProgress,
+        CancellationToken cancellationToken,
+        string? referer = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        if (!string.IsNullOrWhiteSpace(referer))
+            request.Headers.Referrer = new Uri(referer);
+
+        using var response = await _downloadClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+
+        var totalBytes = response.Content.Headers.ContentLength ?? 0;
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken)
             .ConfigureAwait(false);
         await using var target = new FileStream(
@@ -454,42 +568,31 @@ public sealed class ModLoaderService
             FileShare.None,
             81920,
             useAsync: true);
-        await source.CopyToAsync(target, cancellationToken).ConfigureAwait(false);
-    }
 
-    private async Task DownloadMirroredFileAsync(
-        string url,
-        string targetPath,
-        CancellationToken cancellationToken)
-    {
-        try
+        var buffer = new byte[81920];
+        long progressedBytes = 0;
+        var lastReport = 0L;
+        int read;
+        while ((read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
         {
-            await DownloadFileAsync(url, targetPath, cancellationToken).ConfigureAwait(false);
-            return;
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception) when (url.StartsWith(BmclMirrorBase, StringComparison.OrdinalIgnoreCase))
-        {
-            // Try the alternate CERNET mirror below.
-        }
-
-        if (url.StartsWith(BmclMirrorBase, StringComparison.OrdinalIgnoreCase))
-        {
-            var fallbackUrl = BmclMirrorFallback + url[BmclMirrorBase.Length..];
-            await DownloadFileAsync(fallbackUrl, targetPath, cancellationToken)
+            await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
                 .ConfigureAwait(false);
-            return;
-        }
+            progressedBytes += read;
 
-        throw new InvalidOperationException("下载模组加载器文件失败。");
+            var now = Environment.TickCount64;
+            if (totalBytes > 0
+                && (progressedBytes >= totalBytes || now - lastReport >= 100))
+            {
+                byteProgress?.Report(new ByteProgress(totalBytes, progressedBytes));
+                lastReport = now;
+            }
+        }
     }
 
     private async Task DownloadFirstAvailableAsync(
         IReadOnlyList<string> urls,
         string targetPath,
+        IProgress<ByteProgress>? byteProgress,
         CancellationToken cancellationToken)
     {
         Exception? lastError = null;
@@ -498,7 +601,8 @@ public sealed class ModLoaderService
         {
             try
             {
-                await DownloadFileAsync(url, targetPath, cancellationToken).ConfigureAwait(false);
+                await DownloadFileAsync(url, targetPath, byteProgress, cancellationToken)
+                    .ConfigureAwait(false);
                 return;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -515,6 +619,19 @@ public sealed class ModLoaderService
             "下载安装器失败，请检查网络后重试。",
             lastError);
     }
+
+    private IReadOnlyList<string> OrderSourceUrls(string officialUrl, params string[] mirrorUrls)
+    {
+        if (_minecraft.DownloadSource == DownloadSourceKind.BmclApi)
+            return mirrorUrls.Concat(new[] { officialUrl }).ToArray();
+
+        return new[] { officialUrl }.Concat(mirrorUrls).ToArray();
+    }
+
+    private IReadOnlyList<string> GetFabricMetaUrls(string relativePath)
+        => OrderSourceUrls(
+            FabricMetaOfficial + relativePath,
+            FabricMetaMirror + relativePath);
 
     private static string CreateTempDirectory(string prefix)
     {
@@ -568,9 +685,10 @@ public sealed class ModLoaderService
     {
         try
         {
-            var url = $"{FabricMetaBase}/v2/versions/loader/" +
-                      $"{Uri.EscapeDataString(minecraftVersion)}";
-            var json = await GetFabricStringAsync(url, cancellationToken)
+            var relative = $"/v2/versions/loader/{Uri.EscapeDataString(minecraftVersion)}";
+            var json = await GetStringWithFallbackAsync(
+                    GetFabricMetaUrls(relative),
+                    cancellationToken)
                 .ConfigureAwait(false);
             using var document = JsonDocument.Parse(json);
 
@@ -630,6 +748,77 @@ public sealed class ModLoaderService
                 "Forge 自动安装目前支持 Minecraft 1.12.2 及以上版本。");
         }
 
+        ModLoaderCatalogEntry first;
+        ModLoaderCatalogEntry second;
+        if (_minecraft.DownloadSource == DownloadSourceKind.BmclApi)
+        {
+            first = await LoadForgeFromBmclAsync(minecraftVersion, description, cancellationToken)
+                .ConfigureAwait(false);
+            if (first.IsAvailable)
+                return first;
+            second = await LoadForgeOfficialAsync(minecraftVersion, description, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            first = await LoadForgeOfficialAsync(minecraftVersion, description, cancellationToken)
+                .ConfigureAwait(false);
+            if (first.IsAvailable)
+                return first;
+            second = await LoadForgeFromBmclAsync(minecraftVersion, description, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return second.IsAvailable
+            ? second
+            : Failure(ModLoaderKind.Forge, "Forge", description, CombineErrors(first, second));
+    }
+
+    private async Task<ModLoaderCatalogEntry> LoadForgeOfficialAsync(
+        string minecraftVersion,
+        string description,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var url = $"{ForgeMavenBase}/net/minecraftforge/forge/maven-metadata.xml";
+            var xml = await _catalogClient.GetStringAsync(url, cancellationToken)
+                .ConfigureAwait(false);
+            var prefix = minecraftVersion + "-";
+            var versions = XDocument.Parse(xml)
+                .Descendants("version")
+                .Select(element => element.Value)
+                .Where(value => value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                .Select(value => value[prefix.Length..])
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(value => (Version: value, Parsed: ParseMinecraftVersion(value)))
+                .OrderByDescending(item => item.Parsed)
+                .ThenByDescending(item => item.Version, StringComparer.OrdinalIgnoreCase)
+                .Take(60)
+                .Select((item, index) => new ModLoaderVersionOption(
+                    item.Version,
+                    item.Version,
+                    index == 0 ? "最新" : "Forge",
+                    index == 0))
+                .ToArray();
+
+            return versions.Length > 0
+                ? new ModLoaderCatalogEntry(ModLoaderKind.Forge, "Forge", description, versions)
+                : Failure(ModLoaderKind.Forge, "Forge", description,
+                    "官方 Maven 中没有该 Minecraft 版本的 Forge 安装器。");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException
+                                   || !cancellationToken.IsCancellationRequested)
+        {
+            return Failure(ModLoaderKind.Forge, "Forge", description, ex.Message);
+        }
+    }
+
+    private async Task<ModLoaderCatalogEntry> LoadForgeFromBmclAsync(
+        string minecraftVersion,
+        string description,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var url = $"{BmclApiBase}/forge/minecraft/{Uri.EscapeDataString(minecraftVersion)}";
@@ -656,7 +845,7 @@ public sealed class ModLoaderService
             if (versions.Count == 0)
             {
                 return Failure(ModLoaderKind.Forge, "Forge", description,
-                    "该 Minecraft 版本没有可用的 Forge 安装器。");
+                    "BMCLAPI 中没有该 Minecraft 版本的 Forge 安装器。");
             }
 
             var ordered = versions
@@ -672,7 +861,8 @@ public sealed class ModLoaderService
                 .ToArray();
             return new ModLoaderCatalogEntry(ModLoaderKind.Forge, "Forge", description, ordered);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (ex is not OperationCanceledException
+                                   || !cancellationToken.IsCancellationRequested)
         {
             return Failure(ModLoaderKind.Forge, "Forge", description, ex.Message);
         }
@@ -683,6 +873,77 @@ public sealed class ModLoaderService
         CancellationToken cancellationToken)
     {
         const string description = "NeoForge 是 Forge 的现代分支，适合 1.20.2 及以上的新模组。";
+
+        ModLoaderCatalogEntry first;
+        ModLoaderCatalogEntry second;
+        if (_minecraft.DownloadSource == DownloadSourceKind.BmclApi)
+        {
+            first = await LoadNeoForgeFromBmclAsync(minecraftVersion, description, cancellationToken)
+                .ConfigureAwait(false);
+            if (first.IsAvailable)
+                return first;
+            second = await LoadNeoForgeOfficialAsync(minecraftVersion, description, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            first = await LoadNeoForgeOfficialAsync(minecraftVersion, description, cancellationToken)
+                .ConfigureAwait(false);
+            if (first.IsAvailable)
+                return first;
+            second = await LoadNeoForgeFromBmclAsync(minecraftVersion, description, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return second.IsAvailable
+            ? second
+            : Failure(ModLoaderKind.NeoForge, "NeoForge", description, CombineErrors(first, second));
+    }
+
+    private async Task<ModLoaderCatalogEntry> LoadNeoForgeOfficialAsync(
+        string minecraftVersion,
+        string description,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var url = $"{NeoForgeMavenBase}/releases/net/neoforged/neoforge/maven-metadata.xml";
+            var xml = await _catalogClient.GetStringAsync(url, cancellationToken)
+                .ConfigureAwait(false);
+            var prefix = GetNeoForgePrefix(minecraftVersion);
+            var versions = XDocument.Parse(xml)
+                .Descendants("version")
+                .Select(element => element.Value)
+                .Where(value => value.Equals(prefix, StringComparison.OrdinalIgnoreCase)
+                                || value.StartsWith(prefix + ".", StringComparison.OrdinalIgnoreCase))
+                .Where(value => !value.Contains('-') && !value.Contains('+'))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderByDescending(ParseMinecraftVersion)
+                .Take(60)
+                .Select((version, index) => new ModLoaderVersionOption(
+                    version,
+                    version,
+                    index == 0 ? "最新" : "NeoForge",
+                    index == 0))
+                .ToArray();
+
+            return versions.Length > 0
+                ? new ModLoaderCatalogEntry(ModLoaderKind.NeoForge, "NeoForge", description, versions)
+                : Failure(ModLoaderKind.NeoForge, "NeoForge", description,
+                    "官方 Maven 中没有该 Minecraft 版本的 NeoForge。");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException
+                                   || !cancellationToken.IsCancellationRequested)
+        {
+            return Failure(ModLoaderKind.NeoForge, "NeoForge", description, ex.Message);
+        }
+    }
+
+    private async Task<ModLoaderCatalogEntry> LoadNeoForgeFromBmclAsync(
+        string minecraftVersion,
+        string description,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var url = $"{BmclApiBase}/neoforge/list/{Uri.EscapeDataString(minecraftVersion)}";
@@ -703,7 +964,7 @@ public sealed class ModLoaderService
             if (versions.Count == 0)
             {
                 return Failure(ModLoaderKind.NeoForge, "NeoForge", description,
-                    "该 Minecraft 版本没有可用的 NeoForge 版本。");
+                    "BMCLAPI 中没有该 Minecraft 版本的 NeoForge。");
             }
 
             var ordered = versions
@@ -718,7 +979,8 @@ public sealed class ModLoaderService
                 .ToArray();
             return new ModLoaderCatalogEntry(ModLoaderKind.NeoForge, "NeoForge", description, ordered);
         }
-        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (ex is not OperationCanceledException
+                                   || !cancellationToken.IsCancellationRequested)
         {
             return Failure(ModLoaderKind.NeoForge, "NeoForge", description, ex.Message);
         }
@@ -729,6 +991,105 @@ public sealed class ModLoaderService
         CancellationToken cancellationToken)
     {
         const string description = "OptiFine 提供光影、动态光源和性能优化；同一版本只保留一个加载器。";
+
+        ModLoaderCatalogEntry first;
+        ModLoaderCatalogEntry second;
+        if (_minecraft.DownloadSource == DownloadSourceKind.BmclApi)
+        {
+            first = await LoadOptiFineFromBmclAsync(minecraftVersion, description, cancellationToken)
+                .ConfigureAwait(false);
+            if (first.IsAvailable)
+                return first;
+            second = await LoadOptiFineOfficialAsync(minecraftVersion, description, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            first = await LoadOptiFineOfficialAsync(minecraftVersion, description, cancellationToken)
+                .ConfigureAwait(false);
+            if (first.IsAvailable)
+                return first;
+            second = await LoadOptiFineFromBmclAsync(minecraftVersion, description, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return second.IsAvailable
+            ? second
+            : Failure(ModLoaderKind.OptiFine, "OptiFine", description, CombineErrors(first, second));
+    }
+
+    private async Task<ModLoaderCatalogEntry> LoadOptiFineOfficialAsync(
+        string minecraftVersion,
+        string description,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var html = await _catalogClient.GetStringAsync(
+                    OptiFineBase + "/downloads",
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            var options = new List<ModLoaderVersionOption>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var matches = Regex.Matches(
+                html,
+                @"(?<!preview_)OptiFine_(?<mc>[^_""'/]+)_(?<type>HD_U)(?:_(?<patch>[A-Za-z0-9]+))?\.jar",
+                RegexOptions.IgnoreCase);
+
+            foreach (Match match in matches)
+            {
+                if (!string.Equals(
+                        match.Groups["mc"].Value,
+                        minecraftVersion,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var type = match.Groups["type"].Value;
+                var patch = match.Groups["patch"].Value;
+                if (patch.Length == 0
+                    || patch.StartsWith("pre", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var version = $"{type}|{patch}";
+                if (!seen.Add(version))
+                    continue;
+
+                options.Add(new ModLoaderVersionOption(
+                    version,
+                    $"{type.Replace('_', ' ')} {patch}",
+                    $"OptiFine_{minecraftVersion}_{type}_{patch}.jar",
+                    options.Count == 0));
+            }
+
+            if (options.Count == 0)
+            {
+                return Failure(ModLoaderKind.OptiFine, "OptiFine", description,
+                    "OptiFine 官方下载页没有该 Minecraft 版本的稳定版安装包。");
+            }
+
+            return new ModLoaderCatalogEntry(
+                ModLoaderKind.OptiFine,
+                "OptiFine",
+                description,
+                options.Take(40).ToArray());
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException
+                                   || !cancellationToken.IsCancellationRequested)
+        {
+            return Failure(ModLoaderKind.OptiFine, "OptiFine", description, ex.Message);
+        }
+    }
+
+    private async Task<ModLoaderCatalogEntry> LoadOptiFineFromBmclAsync(
+        string minecraftVersion,
+        string description,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var url = $"{BmclApiBase}/optifine/{Uri.EscapeDataString(minecraftVersion)}";
@@ -770,7 +1131,7 @@ public sealed class ModLoaderService
             if (options.Count == 0)
             {
                 return Failure(ModLoaderKind.OptiFine, "OptiFine", description,
-                    "该 Minecraft 版本没有可用的 OptiFine 安装包。");
+                    "BMCLAPI 中没有该 Minecraft 版本的 OptiFine 安装包。");
             }
 
             return new ModLoaderCatalogEntry(
@@ -779,7 +1140,8 @@ public sealed class ModLoaderService
                 description,
                 options.Take(40).ToArray());
         }
-        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (ex is not OperationCanceledException
+                                   || !cancellationToken.IsCancellationRequested)
         {
             return Failure(ModLoaderKind.OptiFine, "OptiFine", description, ex.Message);
         }
@@ -802,37 +1164,58 @@ public sealed class ModLoaderService
     private static Version ParseMinecraftVersion(string value)
         => Version.TryParse(value, out var parsed) ? parsed : new Version(0, 0);
 
-    private static HttpClient CreateHttpClient(TimeSpan timeout)
+    private static string GetNeoForgePrefix(string minecraftVersion)
     {
-        var client = new HttpClient { Timeout = timeout };
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("PMCL", "0.1.0"));
-        return client;
+        var baseVersion = minecraftVersion.Split('-')[0];
+        var parts = baseVersion.Split('.');
+        if (parts.Length < 2)
+            return baseVersion;
+
+        if (string.Equals(parts[0], "1", StringComparison.Ordinal))
+        {
+            var minor = parts.Length >= 3 ? parts[2] : "0";
+            return $"{parts[1]}.{minor}";
+        }
+
+        return $"{parts[0]}.{parts[1]}";
     }
 
-    private async Task<string> GetFabricStringAsync(
-        string primaryUrl,
+    private static string CombineErrors(
+        ModLoaderCatalogEntry first,
+        ModLoaderCatalogEntry second)
+    {
+        var errors = new[] { first.Error, second.Error }
+            .Where(error => !string.IsNullOrWhiteSpace(error))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return errors.Length == 0
+            ? "无法获取该加载器的版本列表。"
+            : string.Join("；", errors);
+    }
+
+    private async Task<string> GetStringWithFallbackAsync(
+        IReadOnlyList<string> urls,
         CancellationToken cancellationToken)
     {
-        try
+        Exception? lastError = null;
+        foreach (var url in urls)
         {
-            return await _catalogClient.GetStringAsync(primaryUrl, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            // Timed out; try the official endpoint below.
-        }
-        catch (HttpRequestException)
-        {
-            // Mirror miss; try the official endpoint below.
+            try
+            {
+                return await _catalogClient.GetStringAsync(url, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+            }
         }
 
-        var relative = primaryUrl.StartsWith(FabricMetaBase, StringComparison.OrdinalIgnoreCase)
-            ? primaryUrl[FabricMetaBase.Length..]
-            : primaryUrl;
-        return await _catalogClient
-            .GetStringAsync(FabricMetaFallback + relative, cancellationToken)
-            .ConfigureAwait(false);
+        throw new InvalidOperationException("无法获取 Fabric Meta 数据。", lastError);
     }
 
     private static void RewriteFabricLibraryUrls(JsonObject profile)

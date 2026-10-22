@@ -30,6 +30,20 @@ public sealed partial class LauncherSettings : ObservableObject
     public partial string LastAccountKind { get; set; } = string.Empty;
 
     /// <summary>
+    /// Identifier of the saved account that should be restored on the next launch.
+    /// Empty means no account should be restored automatically.
+    /// </summary>
+    [ObservableProperty]
+    public partial string LastAccountId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Source used for metadata and file downloads. Official is the default
+    /// and never requires BMCLAPI.
+    /// </summary>
+    [ObservableProperty]
+    public partial DownloadSourceKind DownloadSource { get; set; } = DownloadSourceKind.Official;
+
+    /// <summary>
     /// Launch options keyed by the installed version folder name.
     /// </summary>
     public Dictionary<string, GameVersionSettings> VersionSettings { get; set; } = new();

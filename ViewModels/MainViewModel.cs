@@ -10,7 +10,6 @@ namespace PMCL.ViewModels;
 /// </summary>
 public sealed partial class MainViewModel : ViewModelBase
 {
-    private readonly AuthenticationService _authentication;
     private readonly MinecraftService _minecraft;
 
     public MainViewModel(
@@ -22,7 +21,6 @@ public sealed partial class MainViewModel : ViewModelBase
         AppPaths paths)
     {
         Session = session;
-        _authentication = authentication;
         _minecraft = minecraft;
         var modLoaderService = new ModLoaderService(minecraft);
         var coordinator = new GameLaunchCoordinator(minecraft, settingsService, modLoaderService);
@@ -93,8 +91,8 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         HomeViewModel => "欢迎使用 PMCL，准备好开始游戏了吗？",
         VersionsViewModel => "浏览 Mojang 官方版本，下载时选择原版或 Forge / Fabric / NeoForge / OptiFine。",
-        AccountViewModel => "使用 Microsoft 正版账户，或创建本地离线账户。",
-        SettingsViewModel => "管理游戏目录、界面语言与启动器数据。",
+        AccountViewModel => "管理多个 Microsoft / 离线账户，随时切换，登录页使用系统浏览器。",
+        SettingsViewModel => "管理游戏目录、下载源、界面语言与启动器数据。",
         VersionSettingsViewModel => "为此版本单独配置 Java、内存、登录方式、模组加载器与启动参数。",
         _ => "Philia093's MineCraft Launcher"
     };
@@ -189,39 +187,9 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private async Task RestoreAccountAsync()
     {
-        if (Session.IsBusy)
-            return;
-
         try
         {
-            if (Session.Settings.LastAccountKind == nameof(AccountKind.Microsoft))
-            {
-                Session.BeginBusy("正在恢复 Microsoft 登录...");
-                try
-                {
-                    var microsoftSession = await _authentication.LoginMicrosoftSilentlyAsync();
-                    Session.SetAccount(microsoftSession, AccountKind.Microsoft);
-                    Account.ReloadSavedAccounts();
-                    Session.SetStatus($"已恢复 Microsoft 账户 {microsoftSession.Username}");
-                }
-                catch (Exception)
-                {
-                    Session.EndBusy();
-                    Session.SetStatus("Microsoft 自动登录已失效，请在账户页重新登录。");
-                }
-                finally
-                {
-                    if (Session.IsBusy)
-                        Session.EndBusy();
-                }
-            }
-            else if (Session.Settings.LastAccountKind == nameof(AccountKind.Offline)
-                     && !string.IsNullOrWhiteSpace(Session.Settings.OfflineUsername))
-            {
-                var offlineSession = AuthenticationService.CreateOfflineSession(Session.Settings.OfflineUsername);
-                Session.SetAccount(offlineSession, AccountKind.Offline);
-                Session.SetStatus($"已恢复离线账户 {offlineSession.Username}");
-            }
+            await Account.RestoreLastAccountAsync();
         }
         catch (Exception ex)
         {

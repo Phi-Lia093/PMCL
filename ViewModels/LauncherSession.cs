@@ -4,6 +4,7 @@ using CmlLib.Core.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PMCL.Models;
+using PMCL.Services;
 
 namespace PMCL.ViewModels;
 
@@ -16,6 +17,7 @@ public sealed partial class LauncherSession : ObservableObject
     {
         Settings = settings;
         InstalledVersions.CollectionChanged += OnInstalledVersionsChanged;
+        RefreshDownloadSourceText();
     }
 
     public LauncherSettings Settings { get; }
@@ -27,7 +29,7 @@ public sealed partial class LauncherSession : ObservableObject
     /// </summary>
     public ObservableCollection<GameVersion> InstalledVersions { get; } = new();
 
-    public ObservableCollection<SavedMicrosoftAccount> SavedAccounts { get; } = new();
+    public ObservableCollection<SavedAccount> SavedAccounts { get; } = new();
 
     /// <summary>
     /// The authenticated session passed to Minecraft. Not bound to the UI.
@@ -36,6 +38,9 @@ public sealed partial class LauncherSession : ObservableObject
 
     [ObservableProperty]
     public partial AccountProfile? Account { get; set; }
+
+    [ObservableProperty]
+    public partial string? ActiveAccountId { get; set; }
 
     [ObservableProperty]
     public partial GameVersion? SelectedVersion { get; set; }
@@ -61,6 +66,23 @@ public sealed partial class LauncherSession : ObservableObject
     [ObservableProperty]
     public partial string? LastError { get; set; }
 
+    [ObservableProperty]
+    public partial string ProgressPercentText { get; set; } = "0%";
+
+    [ObservableProperty]
+    public partial string DownloadSpeedText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string DownloadBytesText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string DownloadSourceText { get; set; } =
+        "下载源：" + DownloadSourceKind.Official.ToDisplayName();
+
+    public bool HasDownloadMetrics =>
+        !string.IsNullOrWhiteSpace(DownloadSpeedText)
+        || !string.IsNullOrWhiteSpace(DownloadBytesText);
+
     public bool IsNotBusy => !IsBusy;
 
     public bool HasAccount => Account is not null;
@@ -72,6 +94,8 @@ public sealed partial class LauncherSession : ObservableObject
     public string AccountKindLabel => Account?.KindLabel ?? "登录后即可开始游戏";
 
     public string AccountInitial => Account?.Initial ?? "?";
+
+    public string AccountDetailText => Account?.Detail ?? "选择或添加一个账户以开始游戏。";
 
     public bool HasSelectedVersion => SelectedVersion is not null;
 
@@ -89,14 +113,22 @@ public sealed partial class LauncherSession : ObservableObject
         ? null
         : Settings.GetVersionSettings(SelectedVersion.Name);
 
-    public void SetAccount(MSession session, AccountKind kind)
+    public void SetAccount(
+        MSession session,
+        AccountKind kind,
+        string? accountId = null,
+        string? gamertag = null)
     {
         ActiveSession = session;
+        ActiveAccountId = accountId;
         Account = new AccountProfile(
             session.Username ?? "Player",
             session.UUID ?? string.Empty,
-            kind);
+            kind,
+            accountId,
+            gamertag);
         Settings.LastAccountKind = kind.ToString();
+        Settings.LastAccountId = accountId ?? string.Empty;
         if (kind == AccountKind.Offline)
             Settings.OfflineUsername = session.Username ?? Settings.OfflineUsername;
     }
@@ -104,7 +136,10 @@ public sealed partial class LauncherSession : ObservableObject
     public void ClearAccount()
     {
         ActiveSession = null;
+        ActiveAccountId = null;
         Account = null;
+        Settings.LastAccountId = string.Empty;
+        Settings.LastAccountKind = string.Empty;
     }
 
     public void BeginBusy(string status)
@@ -112,6 +147,8 @@ public sealed partial class LauncherSession : ObservableObject
         LastError = null;
         Progress = 0;
         IsProgressIndeterminate = true;
+        ResetDownloadMetrics();
+        RefreshDownloadSourceText();
         IsBusy = true;
         StatusMessage = status;
     }
@@ -121,7 +158,26 @@ public sealed partial class LauncherSession : ObservableObject
         IsBusy = false;
         IsProgressIndeterminate = false;
         Progress = 0;
+        ResetDownloadMetrics();
     }
+
+    public void ResetDownloadMetrics()
+    {
+        DownloadSpeedText = string.Empty;
+        DownloadBytesText = string.Empty;
+    }
+
+    public void UpdateDownloadMetrics(long progressedBytes, long totalBytes, double bytesPerSecond)
+    {
+        DownloadBytesText = totalBytes > 0
+            ? $"已下载 {DownloadSpeedTracker.FormatBytes(progressedBytes)} / {DownloadSpeedTracker.FormatBytes(totalBytes)}"
+            : $"已下载 {DownloadSpeedTracker.FormatBytes(progressedBytes)}";
+
+        DownloadSpeedText = DownloadSpeedTracker.FormatSpeed(bytesPerSecond);
+    }
+
+    public void RefreshDownloadSourceText()
+        => DownloadSourceText = "下载源：" + Settings.DownloadSource.ToDisplayName();
 
     public void SetStatus(string message)
     {
@@ -271,6 +327,7 @@ public sealed partial class LauncherSession : ObservableObject
         OnPropertyChanged(nameof(AccountName));
         OnPropertyChanged(nameof(AccountKindLabel));
         OnPropertyChanged(nameof(AccountInitial));
+        OnPropertyChanged(nameof(AccountDetailText));
     }
 
     partial void OnSelectedVersionChanged(GameVersion? value)
@@ -291,4 +348,13 @@ public sealed partial class LauncherSession : ObservableObject
     }
 
     partial void OnLastErrorChanged(string? value) => OnPropertyChanged(nameof(HasError));
+
+    partial void OnProgressChanged(double value)
+        => ProgressPercentText = $"{Math.Clamp(value, 0, 1):P0}";
+
+    partial void OnDownloadSpeedTextChanged(string value)
+        => OnPropertyChanged(nameof(HasDownloadMetrics));
+
+    partial void OnDownloadBytesTextChanged(string value)
+        => OnPropertyChanged(nameof(HasDownloadMetrics));
 }

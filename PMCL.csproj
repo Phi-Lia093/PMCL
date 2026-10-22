@@ -1,8 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <!-- Windows TFM is required by CmlLib.Core.Auth.Microsoft (WebView2 based Microsoft login). -->
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <OutputType Condition="$([MSBuild]::IsOSPlatform('Windows'))">WinExe</OutputType>
+    <OutputType Condition="!$([MSBuild]::IsOSPlatform('Windows'))">Exe</OutputType>
+    <!-- Microsoft login uses the system browser and the OAuth protocol directly,
+         so the launcher has no WebView2 runtime dependency and can target any desktop OS. -->
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -28,7 +30,6 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
     <PackageReference Include="CmlLib.Core" Version="4.1.0" />
-    <PackageReference Include="CmlLib.Core.Auth.Microsoft" Version="3.4.0" />
     <PackageReference Include="CmlLib.Core.Installer.Forge" Version="2.0.0" />
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>

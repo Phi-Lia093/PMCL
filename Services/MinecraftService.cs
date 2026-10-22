@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -9,6 +10,8 @@ using CmlLib.Core.Installers;
 using CmlLib.Core.Installer.Forge;
 using CmlLib.Core.Installer.Forge.Installers;
 using CmlLib.Core.ProcessBuilder;
+using CmlLib.Core.VersionLoader;
+using CmlLib.Core.VersionMetadata;
 using PMCL.Models;
 
 namespace PMCL.Services;
@@ -27,6 +30,19 @@ public sealed class MinecraftService
 
     private readonly Dictionary<string, MinecraftLauncher> _launchers =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly Func<DownloadSourceKind> _downloadSourceProvider;
+
+    public MinecraftService(Func<DownloadSourceKind>? downloadSourceProvider = null)
+    {
+        _downloadSourceProvider = downloadSourceProvider
+            ?? (static () => DownloadSourceKind.Official);
+    }
+
+    /// <summary>
+    /// The source currently selected in the launcher settings. Official is the
+    /// default and requires no BMCLAPI access.
+    /// </summary>
+    public DownloadSourceKind DownloadSource => _downloadSourceProvider();
 
     public async Task<IReadOnlyList<GameVersion>> GetVersionsAsync(
         string gameDirectory,
@@ -96,7 +112,7 @@ public sealed class MinecraftService
         var launcher = GetLauncher(path);
         await launcher.InstallAsync(versionName, fileProgress, byteProgress, cancellationToken)
             .ConfigureAwait(false);
-        _launchers.Remove(path.BasePath);
+        InvalidateLauncher(path);
         return versionName;
     }
 
@@ -157,7 +173,7 @@ public sealed class MinecraftService
                 localInstallerPath,
                 remoteFileDownloader);
         await installer.Install(path, gameInstaller, options).ConfigureAwait(false);
-        _launchers.Remove(path.BasePath);
+        InvalidateLauncher(path);
         return versionName;
     }
 
@@ -267,7 +283,7 @@ public sealed class MinecraftService
                     $"OptiFine 安装器未生成版本 {versionName}。{GetOutputTail(output)}");
             }
 
-            _launchers.Remove(path.BasePath);
+            InvalidateLauncher(path);
             return versionName;
         }
         finally
@@ -389,7 +405,7 @@ public sealed class MinecraftService
 
         UpdateInheritedVersionReferences(path, newDirectory, oldName, newName);
         ModLoaderDetector.UpdateBaseVersion(path.Versions, oldName, newName);
-        _launchers.Remove(path.BasePath);
+        InvalidateLauncher(path);
     }
 
     /// <summary>
@@ -403,7 +419,7 @@ public sealed class MinecraftService
         if (Directory.Exists(versionDirectory))
             Directory.Delete(versionDirectory, recursive: true);
 
-        _launchers.Remove(path.BasePath);
+        InvalidateLauncher(path);
     }
 
     public static void ValidateVersionName(string versionName)
@@ -606,13 +622,34 @@ public sealed class MinecraftService
 
     private MinecraftLauncher GetLauncher(MinecraftPath path)
     {
-        if (_launchers.TryGetValue(path.BasePath, out var launcher))
+        var source = DownloadSource;
+        var cacheKey = $"{path.BasePath}|{source}";
+        if (_launchers.TryGetValue(cacheKey, out var launcher))
             return launcher;
 
         path.CreateDirs();
-        launcher = new MinecraftLauncher(path);
-        _launchers[path.BasePath] = launcher;
+        var httpClient = DownloadSourceRouter.CreateHttpClient(
+            () => source,
+            TimeSpan.FromMinutes(15));
+        var parameters = MinecraftLauncherParameters.CreateDefault(path, httpClient);
+
+        if (source == DownloadSourceKind.BmclApi)
+            parameters.VersionLoader = new BmclVersionLoader(path, httpClient);
+
+        launcher = new MinecraftLauncher(parameters);
+        _launchers[cacheKey] = launcher;
         return launcher;
+    }
+
+    private void InvalidateLauncher(MinecraftPath path)
+    {
+        var prefix = path.BasePath + "|";
+        foreach (var key in _launchers.Keys
+                     .Where(key => key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                     .ToList())
+        {
+            _launchers.Remove(key);
+        }
     }
 
     private static MinecraftPath CreatePath(string gameDirectory)
@@ -625,6 +662,175 @@ public sealed class MinecraftService
     {
         var jsonPath = Path.Combine(path.Versions, versionName, versionName + ".json");
         return File.Exists(jsonPath);
+    }
+
+    private sealed class BmclVersionLoader : IVersionLoader
+    {
+        private const string ManifestUrl =
+            DownloadSourceRouter.BmclApiBase + "/mc/game/version_manifest_v2.json";
+
+        private readonly MinecraftPath _path;
+        private readonly HttpClient _httpClient;
+
+        public BmclVersionLoader(MinecraftPath path, HttpClient httpClient)
+        {
+            _path = path;
+            _httpClient = httpClient;
+        }
+
+        public async ValueTask<VersionMetadataCollection> GetVersionMetadatasAsync(
+            CancellationToken cancellationToken = default)
+        {
+            var local = await new LocalJsonVersionLoader(_path)
+                .GetVersionMetadatasAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            VersionMetadataCollection remote;
+            try
+            {
+                using var response = await _httpClient.GetAsync(
+                        ManifestUrl,
+                        HttpCompletionOption.ResponseHeadersRead,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+
+                await using var stream = await response.Content
+                    .ReadAsStreamAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                using var document = await JsonDocument.ParseAsync(
+                        stream,
+                        cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+
+                var items = new List<IVersionMetadata>();
+                string? latestRelease = null;
+                string? latestSnapshot = null;
+
+                if (document.RootElement.TryGetProperty("latest", out var latest))
+                {
+                    latestRelease = GetString(latest, "release");
+                    latestSnapshot = GetString(latest, "snapshot");
+                }
+
+                if (document.RootElement.TryGetProperty("versions", out var versions)
+                    && versions.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var version in versions.EnumerateArray())
+                    {
+                        var id = GetString(version, "id");
+                        if (string.IsNullOrWhiteSpace(id))
+                            continue;
+
+                        var officialUrl = GetString(version, "url");
+                        var releaseTime = GetString(version, "releaseTime");
+                        var model = new JsonVersionMetadataModel
+                        {
+                            Id = id,
+                            Type = GetString(version, "type"),
+                            ReleaseTime = DateTimeOffset.TryParse(
+                                releaseTime,
+                                CultureInfo.InvariantCulture,
+                                DateTimeStyles.AssumeUniversal,
+                                out var parsed)
+                                ? parsed
+                                : DateTimeOffset.MinValue,
+                            Url = officialUrl
+                        };
+
+                        var primaryUrl = new Uri(
+                            $"{DownloadSourceRouter.BmclApiBase}/version/{Uri.EscapeDataString(id)}/json");
+                        var fallbackUrl = Uri.TryCreate(officialUrl, UriKind.Absolute, out var official)
+                            ? official
+                            : null;
+                        items.Add(new BmclVersionMetadata(model, _httpClient, primaryUrl, fallbackUrl));
+                    }
+                }
+
+                remote = new VersionMetadataCollection(items, latestRelease, latestSnapshot);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException
+                                       || !cancellationToken.IsCancellationRequested)
+            {
+                // The mirror manifest is unavailable: keep the official loader.
+                return await new MojangJsonVersionLoaderV2(_path, _httpClient)
+                    .GetVersionMetadatasAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            return MergeLocal(local, remote);
+        }
+
+        private static VersionMetadataCollection MergeLocal(
+            VersionMetadataCollection local,
+            VersionMetadataCollection remote)
+        {
+            var names = new HashSet<string>(
+                local.Select(version => version.Name),
+                StringComparer.OrdinalIgnoreCase);
+            var items = local.ToList();
+
+            foreach (var version in remote)
+            {
+                if (names.Add(version.Name))
+                    items.Add(version);
+            }
+
+            return new VersionMetadataCollection(items, remote.LatestReleaseName, remote.LatestSnapshotName);
+        }
+
+        private static string? GetString(JsonElement element, string propertyName)
+            => element.TryGetProperty(propertyName, out var property)
+               && property.ValueKind == JsonValueKind.String
+                ? property.GetString()
+                : null;
+    }
+
+    private sealed class BmclVersionMetadata : JsonVersionMetadata
+    {
+        private readonly HttpClient _httpClient;
+        private readonly Uri _primaryUrl;
+        private readonly Uri? _fallbackUrl;
+
+        public BmclVersionMetadata(
+            JsonVersionMetadataModel model,
+            HttpClient httpClient,
+            Uri primaryUrl,
+            Uri? fallbackUrl)
+            : base(model)
+        {
+            _httpClient = httpClient;
+            _primaryUrl = primaryUrl;
+            _fallbackUrl = fallbackUrl;
+        }
+
+        protected override async ValueTask<Stream> GetVersionJsonStream(
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                return await OpenVersionJsonAsync(_primaryUrl, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (_fallbackUrl is not null
+                                       && !cancellationToken.IsCancellationRequested
+                                       && ex is HttpRequestException or OperationCanceledException)
+            {
+                return await OpenVersionJsonAsync(_fallbackUrl, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        private async ValueTask<Stream> OpenVersionJsonAsync(
+            Uri url,
+            CancellationToken cancellationToken)
+        {
+            var response = await _httpClient.GetAsync(
+                    url,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            return await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>

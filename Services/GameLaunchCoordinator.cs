@@ -68,7 +68,7 @@ public sealed class GameLaunchCoordinator
             {
                 var settings = session.Settings.GetVersionSettings(version.Name);
                 var fileProgress = CreateFileProgress(session, version.Name);
-                var byteProgress = CreateByteProgress(session, version.Name);
+                var byteProgress = CreateByteProgress(session);
                 var installerOutput = new Progress<string>(line =>
                 {
                     if (!string.IsNullOrWhiteSpace(line))
@@ -145,7 +145,7 @@ public sealed class GameLaunchCoordinator
                 .Clone();
 
             var fileProgress = CreateFileProgress(session, baseVersion.Name);
-            var byteProgress = CreateByteProgress(session, baseVersion.Name);
+            var byteProgress = CreateByteProgress(session);
             var installerOutput = new Progress<string>(line =>
             {
                 if (!string.IsNullOrWhiteSpace(line))
@@ -273,20 +273,40 @@ public sealed class GameLaunchCoordinator
         {
             session.IsProgressIndeterminate = false;
             var total = Math.Max(1, args.TotalTasks);
-            session.Progress = Math.Clamp((double)args.ProgressedTasks / total, 0, 1);
+            var ratio = Math.Clamp((double)args.ProgressedTasks / total, 0, 1);
+
+            // A new installation phase starts with queued files. Reset the bar
+            // here so a finished installer download does not leave it at 100%.
+            if (args.EventType == InstallerEventType.Queued && args.ProgressedTasks == 0)
+                session.Progress = 0;
+            else
+                session.Progress = Math.Max(session.Progress, ratio);
+
             session.SetStatus(
                 $"正在下载 {displayName}（{args.ProgressedTasks}/{args.TotalTasks}） {args.Name}");
         });
 
-    private static Progress<ByteProgress> CreateByteProgress(
-        LauncherSession session,
-        string displayName)
-        => new(progress =>
+    private static Progress<ByteProgress> CreateByteProgress(LauncherSession session)
+    {
+        var speedTracker = new DownloadSpeedTracker();
+        return new(progress =>
         {
+            if (progress.TotalBytes <= 0)
+                return;
+
+            session.IsProgressIndeterminate = false;
             var ratio = progress.ToRatio();
-            if (ratio is > 0 and <= 1)
-                session.StatusMessage = $"正在下载 {displayName} ... {ratio:P0}";
+            if (ratio is >= 0 and <= 1)
+                session.Progress = Math.Max(session.Progress, ratio);
+
+            var sample = speedTracker.Update(progress);
+            if (sample is { } value)
+                session.UpdateDownloadMetrics(
+                    value.ProgressedBytes,
+                    value.TotalBytes,
+                    value.BytesPerSecond);
         });
+    }
 
 
 
@@ -474,9 +494,12 @@ public sealed class GameLaunchCoordinator
             .Replace("{versionDir}", versionDirectory, StringComparison.OrdinalIgnoreCase)
             .Replace("{version}", version.Name, StringComparison.OrdinalIgnoreCase);
 
+        var isWindows = OperatingSystem.IsWindows();
         var startInfo = new ProcessStartInfo
         {
-            FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
+            FileName = isWindows
+                ? Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe"
+                : "/bin/sh",
             WorkingDirectory = gameDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -484,9 +507,17 @@ public sealed class GameLaunchCoordinator
             RedirectStandardError = true
         };
 
-        startInfo.ArgumentList.Add("/d");
-        startInfo.ArgumentList.Add("/s");
-        startInfo.ArgumentList.Add("/c");
+        if (isWindows)
+        {
+            startInfo.ArgumentList.Add("/d");
+            startInfo.ArgumentList.Add("/s");
+            startInfo.ArgumentList.Add("/c");
+        }
+        else
+        {
+            startInfo.ArgumentList.Add("-c");
+        }
+
         startInfo.ArgumentList.Add(expandedCommand);
         startInfo.Environment["PMCL_GAME_DIR"] = gameDirectory;
         startInfo.Environment["PMCL_VERSION"] = version.Name;
@@ -646,21 +677,8 @@ public sealed class GameLaunchCoordinator
     {
         session.IsProgressIndeterminate = true;
 
-        var fileProgress = new Progress<InstallerProgressChangedEventArgs>(args =>
-        {
-            session.IsProgressIndeterminate = false;
-            var total = Math.Max(1, args.TotalTasks);
-            session.Progress = Math.Clamp((double)args.ProgressedTasks / total, 0, 1);
-            session.SetStatus(
-                $"正在下载 {version.Name}（{args.ProgressedTasks}/{args.TotalTasks}） {args.Name}");
-        });
-
-        var byteProgress = new Progress<ByteProgress>(progress =>
-        {
-            var ratio = progress.ToRatio();
-            if (ratio is > 0 and <= 1)
-                session.StatusMessage = $"正在下载 {version.Name} ... {ratio:P0}";
-        });
+        var fileProgress = CreateFileProgress(session, version.Name);
+        var byteProgress = CreateByteProgress(session);
 
         await _minecraft.InstallAsync(
             session.Settings.GameDirectory,

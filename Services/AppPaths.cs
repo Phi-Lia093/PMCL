@@ -23,6 +23,12 @@ public sealed class AppPaths
 
     public string AccountsFile => Path.Combine(DataDirectory, "accounts.json");
 
+    /// <summary>
+    /// Backup of the account file written by CmlLib before PMCL moved to its own
+    /// multi-account store.
+    /// </summary>
+    public string LegacyAccountsBackupFile => Path.Combine(DataDirectory, "accounts.legacy.json");
+
     public string LogsDirectory => Path.Combine(DataDirectory, "logs");
 
     public static string DefaultGameDirectory => MinecraftPath.GetOSDefaultPath();

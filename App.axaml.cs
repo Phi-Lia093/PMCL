@@ -24,7 +24,7 @@ public partial class App : Application
 
             var session = new LauncherSession(settings);
             var authentication = new AuthenticationService(paths);
-            var minecraft = new MinecraftService();
+            var minecraft = new MinecraftService(() => settings.DownloadSource);
 
             MainWindow? mainWindow = null;
             var picker = new StoragePickerService(() => mainWindow);

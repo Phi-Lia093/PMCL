@@ -620,14 +620,14 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             if (!Directory.Exists(path))
                 throw new DirectoryNotFoundException($"文件夹不存在：{path}");
 
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "explorer.exe",
-                Arguments = $"\"{path}\"",
-                UseShellExecute = true
-            });
+            var startInfo = OperatingSystem.IsWindows()
+                ? new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true }
+                : OperatingSystem.IsMacOS()
+                    ? new ProcessStartInfo("open", $"\"{path}\"") { UseShellExecute = true }
+                    : new ProcessStartInfo("xdg-open", $"\"{path}\"") { UseShellExecute = true };
 
-            Session.SetStatus($"已在资源管理器中打开：{path}");
+            Process.Start(startInfo);
+            Session.SetStatus($"已在文件管理器中打开：{path}");
         }
         catch (Exception ex)
         {

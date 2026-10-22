@@ -175,7 +175,7 @@
                                        VerticalAlignment="Center" />
                         </StackPanel>
                         <TextBlock Grid.Column="1"
-                                   Text="原版 / 模组加载器 · 版本独立配置 · Microsoft 登录"
+                                   Text="多账户 · 设备码登录 · 版本独立配置"
                                    Classes="muted"
                                    FontSize="10"
                                    VerticalAlignment="Center" />
@@ -217,6 +217,21 @@
                     <ProgressBar Minimum="0" Maximum="1"
                                  Value="{Binding Session.Progress}"
                                  IsIndeterminate="{Binding Session.IsProgressIndeterminate}" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Text="{Binding Session.ProgressPercentText}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Session.DownloadSpeedText}"
+                                   Classes="muted"
+                                   HorizontalAlignment="Right" />
+                    </Grid>
+                    <TextBlock Text="{Binding Session.DownloadBytesText}"
+                               Classes="muted"
+                               IsVisible="{Binding Session.HasDownloadMetrics}" />
+                    <TextBlock Text="{Binding Session.DownloadSourceText}"
+                               Classes="muted"
+                               FontSize="10" />
                     <TextBlock Text="请保持网络连接，下载完成前不要关闭启动器。"
                                Classes="muted"
                                FontSize="10" />

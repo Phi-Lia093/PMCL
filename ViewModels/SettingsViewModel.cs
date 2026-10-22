@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PMCL.Models;
 using PMCL.Services;
 
 namespace PMCL.ViewModels;
@@ -30,11 +31,21 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
         GameDirectory = session.Settings.GameDirectory;
         SelectedLanguageIndex = 0;
+        SelectedDownloadSourceIndex =
+            session.Settings.DownloadSource == DownloadSourceKind.BmclApi ? 1 : 0;
     }
 
     public LauncherSession Session { get; }
 
     public IReadOnlyList<string> LanguageOptions { get; } = new[] { "简体中文" };
+
+    public IReadOnlyList<string> DownloadSourceOptions { get; } = new[]
+    {
+        "官方源（推荐）",
+        "BMCLAPI 镜像（官方回退）"
+    };
+
+    public string DownloadSourceDescription => GetSelectedDownloadSource().ToDescription();
 
     public string DataDirectory => _paths.DataDirectory;
 
@@ -43,6 +54,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial int SelectedLanguageIndex { get; set; }
+
+    [ObservableProperty]
+    public partial int SelectedDownloadSourceIndex { get; set; }
 
     [RelayCommand]
     private async Task BrowseGameDirectoryAsync()
@@ -80,6 +94,8 @@ public sealed partial class SettingsViewModel : ViewModelBase
         Session.Settings.Language = string.IsNullOrWhiteSpace(Session.Settings.Language)
             ? "zh-CN"
             : Session.Settings.Language;
+        Session.Settings.DownloadSource = GetSelectedDownloadSource();
+        Session.RefreshDownloadSourceText();
 
         if (!_settingsService.TrySave(Session.Settings, out var error))
         {
@@ -97,5 +113,17 @@ public sealed partial class SettingsViewModel : ViewModelBase
         }
 
         Session.SetStatus("全局设置已保存");
+    }
+
+    private DownloadSourceKind GetSelectedDownloadSource()
+        => SelectedDownloadSourceIndex == 1
+            ? DownloadSourceKind.BmclApi
+            : DownloadSourceKind.Official;
+
+    partial void OnSelectedDownloadSourceIndexChanged(int value)
+    {
+        OnPropertyChanged(nameof(DownloadSourceDescription));
+        Session.Settings.DownloadSource = GetSelectedDownloadSource();
+        Session.RefreshDownloadSourceText();
     }
 }

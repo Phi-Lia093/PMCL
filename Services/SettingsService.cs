@@ -93,6 +93,9 @@ public sealed class SettingsService
             : settings.OfflineUsername.Trim();
         settings.LastVersion ??= string.Empty;
         settings.LastAccountKind ??= string.Empty;
+        settings.LastAccountId ??= string.Empty;
+        if (!Enum.IsDefined(settings.DownloadSource))
+            settings.DownloadSource = DownloadSourceKind.Official;
         settings.VersionSettings ??= new Dictionary<string, GameVersionSettings>();
 
         foreach (var versionName in settings.VersionSettings.Keys.ToList())

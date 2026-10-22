@@ -39,6 +39,24 @@
                 </StackPanel>
             </Border>
 
+            <Border Classes="card">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="下载源" Classes="h2" FontSize="16" />
+                        <TextBlock Text="官方源优先使用 Mojang 与各加载器官方地址，不依赖 BMCLAPI；镜像仅用于加速或回退。"
+                                   Classes="muted"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <ComboBox ItemsSource="{Binding DownloadSourceOptions}"
+                              SelectedIndex="{Binding SelectedDownloadSourceIndex, Mode=TwoWay}" />
+
+                    <TextBlock Text="{Binding DownloadSourceDescription}"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
             <Grid ColumnDefinitions="1*,1*" ColumnSpacing="16">
                 <Border Grid.Column="0" Classes="card">
                     <StackPanel Spacing="14">
