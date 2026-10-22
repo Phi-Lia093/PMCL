@@ -7,6 +7,7 @@
              x:Class="PMCL.Views.VersionSettingsView"
              x:DataType="vm:VersionSettingsViewModel">
 
+    <Grid>
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="16" Margin="0,0,6,16">
 
@@ -33,6 +34,13 @@
                                 <TextBlock Text="{Binding VersionStatusText}"
                                            FontSize="10"
                                            Foreground="#C3B5FF" />
+                            </Border>
+                            <Border Background="#1B2233" CornerRadius="6"
+                                    Padding="7,2" VerticalAlignment="Center"
+                                    IsVisible="{Binding HasModLoader}">
+                                <TextBlock Text="{Binding CurrentLoaderLabel}"
+                                           FontSize="10"
+                                           Foreground="{StaticResource TextSecondaryBrush}" />
                             </Border>
                         </StackPanel>
                         <TextBlock Text="{Binding VersionDirectory}"
@@ -122,6 +130,73 @@
                                    TextWrapping="Wrap"
                                    VerticalAlignment="Center" />
                     </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card" IsVisible="{Binding CanManageModLoader}">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="模组加载器" Classes="h2" FontSize="16" />
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                        <StackPanel Spacing="4" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CurrentLoaderLabel}"
+                                       FontSize="15"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding LoaderBaseVersionLabel}"
+                                       Classes="muted"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    Spacing="8"
+                                    VerticalAlignment="Center">
+                            <Button Classes="secondary"
+                                    Content="添加模组加载器"
+                                    IsVisible="{Binding IsVanillaVersion}"
+                                    IsEnabled="{Binding !Session.IsBusy}"
+                                    Command="{Binding AddOrChangeLoaderCommand}" />
+                            <Button Classes="secondary"
+                                    Content="更换模组加载器"
+                                    IsVisible="{Binding HasModLoader}"
+                                    IsEnabled="{Binding !Session.IsBusy}"
+                                    Command="{Binding AddOrChangeLoaderCommand}" />
+                            <Button Classes="danger"
+                                    Content="移除模组加载器"
+                                    IsVisible="{Binding HasModLoader}"
+                                    IsEnabled="{Binding !Session.IsBusy}"
+                                    Command="{Binding RequestRemoveLoaderCommand}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="已安装的模组加载器会作为独立版本显示在主页；选择该加载器版本后，可在版本设置中更换或移除。"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+
+                    <TextBlock Text="同一 Minecraft 版本只保留一个模组加载器。添加或更换会自动下载对应加载器，并替换旧的加载器版本；存档、截图和资源文件不会删除。移除加载器后会回到原版版本，版本设置会尽量保留。"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+
+                    <Border IsVisible="{Binding IsRemoveLoaderConfirmVisible}"
+                            Background="#2A1620"
+                            BorderBrush="#6E2B39"
+                            BorderThickness="1"
+                            CornerRadius="10"
+                            Padding="14">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="确定移除此模组加载器吗？只会删除加载器版本文件夹，原版版本和共享游戏文件会保留。"
+                                       TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button Classes="danger"
+                                        Content="确认移除"
+                                        IsEnabled="{Binding !Session.IsBusy}"
+                                        Command="{Binding ConfirmRemoveLoaderCommand}" />
+                                <Button Classes="secondary"
+                                        Content="取消"
+                                        Command="{Binding CancelRemoveLoaderCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 
@@ -275,6 +350,7 @@
                 </StackPanel>
             </Border>
 
+
             <Border Classes="card">
                 <StackPanel Spacing="12">
                     <TextBlock Text="危险操作"
@@ -319,4 +395,5 @@
 
         </StackPanel>
     </ScrollViewer>
+    </Grid>
 </UserControl>

@@ -7,11 +7,13 @@ namespace PMCL.Services;
 /// </summary>
 public sealed class AppPaths
 {
-    public AppPaths()
+    public AppPaths(string? dataDirectory = null)
     {
-        DataDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "PMCL");
+        DataDirectory = string.IsNullOrWhiteSpace(dataDirectory)
+            ? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "PMCL")
+            : Path.GetFullPath(dataDirectory);
         Directory.CreateDirectory(DataDirectory);
     }
 

@@ -4,7 +4,7 @@
 
 - 名称：PMCL（**P**hilia093's **M**ine**C**raft **L**auncher）
 - 目标：基于 C# / .NET 与 Avalonia 的现代 Minecraft Java 版启动器。
-- 当前能力：原版版本列表 / 下载安装 / 启动、Microsoft 正版登录（含静默恢复）、离线登录、按版本独立配置 Java / 内存 / 窗口 / 登录方式 / 自动进服 / JVM 参数 / 游戏参数 / 启动前命令、版本重命名 / 删除 / 补全 / 导出启动脚本、全局游戏目录与语言占位、现代深色 UI。
+- 当前能力：原版版本列表 / 下载安装 / 启动、Forge / Fabric / NeoForge / OptiFine 模组加载器自动下载安装与互斥管理、Microsoft 正版登录（含静默恢复）、离线登录、按版本独立配置 Java / 内存 / 窗口 / 登录方式 / 自动进服 / JVM 参数 / 游戏参数 / 启动前命令、版本重命名 / 删除 / 补全 / 导出启动脚本、全局游戏目录与语言占位、现代深色 UI。
 - 当前版本：`0.1.0`（见 `PMCL.csproj`）。
 
 ## 2. 技术栈
@@ -14,7 +14,7 @@
 | .NET | `net10.0-windows`（**必须保留 Windows TFM**，CmlLib 的 WebView2 登录依赖它） |
 | UI | Avalonia `12.1.4` + Fluent 主题 + Inter 字体 |
 | MVVM | CommunityToolkit.Mvvm `8.4.2`（`[ObservableProperty]` 使用 **partial property** 写法） |
-| Minecraft | CmlLib.Core `4.1.0`、CmlLib.Core.Auth.Microsoft `3.4.0` |
+| Minecraft | CmlLib.Core `4.1.0`、CmlLib.Core.Auth.Microsoft `3.4.0`、CmlLib.Core.Installer.Forge `2.0.0`（Forge / NeoForge 安装引擎） |
 | 输出 | `WinExe`，程序集名 `PMCL` |
 
 ## 3. 常用命令（Windows / PowerShell）
@@ -43,24 +43,30 @@ D:\PMCL
 ├─ Models/
 │  ├─ AccountKind.cs             # Microsoft / Offline
 │  ├─ AccountProfile.cs          # 当前账户 UI 模型
-│  ├─ GameVersion.cs             # 版本（Name/Type/ReleaseTime/IsInstalled/IsRelease）
+│  ├─ GameVersion.cs             # 版本（Name/Type/ReleaseTime/IsInstalled/加载器元数据）
 │  ├─ GameVersionSettings.cs     # 每个已安装版本的启动设置
 │  ├─ LauncherSettings.cs        # 全局设置 + versionSettings 字典
+│  ├─ ModLoaderKind.cs           # 原版 / Fabric / Forge / NeoForge / OptiFine
+│  ├─ ModLoaderMetadata.cs       # 版本目录内 pmcl-loader.json 的模型
 │  ├─ VersionLoginMode.cs        # 当前账户 / Microsoft / 离线
 │  └─ SavedMicrosoftAccount.cs   # accounts.json 中的账户摘要
 ├─ Services/
 │  ├─ AppPaths.cs                # %APPDATA%\PMCL 路径集中管理
 │  ├─ AuthenticationService.cs   # Microsoft 登录/静默恢复/离线会话/登出
 │  ├─ CommandLineSplitter.cs     # JVM / 游戏参数分词
-│  ├─ GameLaunchCoordinator.cs   # 安装、补全、按版本启动、脚本导出
-│  ├─ MinecraftService.cs        # CmlLib 封装 + 版本文件夹重命名/删除
+│  ├─ GameLaunchCoordinator.cs   # 安装、补全、加载器互斥安装/移除、按版本启动、脚本导出
+│  ├─ MinecraftService.cs        # CmlLib 封装 + 加载器安装 + 版本文件夹重命名/删除
+│  ├─ ModLoaderDetector.cs       # pmcl-loader.json / 版本名加载器检测
+│  ├─ ModLoaderService.cs        # Fabric/Forge/NeoForge/OptiFine 目录与安装
 │  ├─ SettingsService.cs         # settings.json 读写、规范化与旧设置迁移
 │  └─ StoragePickerService.cs    # 文件夹 / Java / 脚本保存对话框
 ├─ ViewModels/
 │  ├─ MainViewModel.cs           # 外壳：导航、页面实例、初始化、版本刷新
 │  ├─ LauncherSession.cs         # 共享状态：账户、已安装版本、进度、错误
 │  ├─ HomeViewModel.cs           # 主页（仅已安装版本启动 / 进入版本设置）
-│  ├─ VersionsViewModel.cs       # 版本库（搜索、选择、安装）
+│  ├─ VersionsViewModel.cs       # 版本库（搜索、选择、打开加载器选择界面）
+│  ├─ ModLoaderSelectorViewModel.cs # 共享加载器/版本选择、Java、互斥提示
+│  ├─ ModLoaderChoiceViewModel.cs   # 加载器卡片 + 版本下拉
 │  ├─ AccountViewModel.cs        # Microsoft / 离线登录、已存账户切换、登出
 │  ├─ VersionSettingsViewModel.cs# 版本设置页（自动保存、文件操作、脚本导出）
 │  ├─ SettingsViewModel.cs       # 全局设置页（游戏目录、语言占位）
@@ -69,6 +75,7 @@ D:\PMCL
    ├─ MainWindow.axaml(.cs)      # 侧边导航 + 页头 + 内容宿主 + 全局遮罩
    ├─ HomeView.axaml(.cs)
    ├─ VersionsView.axaml(.cs)
+   ├─ ModLoaderSelectorView.axaml(.cs) # 版本库/版本设置共用的加载器选择弹层
    ├─ AccountView.axaml(.cs)
    ├─ VersionSettingsView.axaml(.cs)
    └─ SettingsView.axaml(.cs)
@@ -81,6 +88,9 @@ D:\PMCL
   - 全局字段：`gameDirectory`、`language`、`lastVersion`、`offlineUsername`、`lastAccountKind`
   - 版本字段：`versionSettings.<版本名>` 保存 Java、内存、窗口、登录方式、自动进服、JVM / 游戏参数、启动前命令
   - 旧版全局 `javaPath` / 内存 / 窗口字段会在首次加载时迁移到最后选择的版本
+- 加载器元数据：每个加载器版本目录内的 `pmcl-loader.json`（`loader`、`loaderVersion`、`minecraftVersion`）
+  - 新安装会写入；旧 Forge / Fabric / OptiFine / NeoForge 文件夹会通过版本名与 json `inheritsFrom` 回退识别
+  - 重命名原版版本时会同步更新子加载器的 `minecraftVersion`
 - 微软账户缓存：`%APPDATA%\PMCL\accounts.json`
 - 日志目录预留：`%APPDATA%\PMCL\logs`
 - 默认游戏目录：`MinecraftPath.GetOSDefaultPath()`（通常为 `%APPDATA%\.minecraft`）
@@ -108,7 +118,14 @@ D:\PMCL
 
 - **启动**：`MainWindow.Opened` → `MainViewModel.InitializeAsync()` → 读取已存账户 → `RefreshVersionsAsync()`（同时重建 `Session.InstalledVersions`）→ `RestoreAccountAsync()`（仅当 `LastAccountKind` 为 Microsoft/Offline）。
 - **主页版本选择**：ComboBox 只绑定 `LauncherSession.InstalledVersions`；`ApplyVersions` / `EnsureInstalledSelection` 保证主页只会选中已安装版本。
-- **安装 / 补全**：`GameLaunchCoordinator` → `MinecraftService.InstallAsync`，通过 `IProgress<InstallerProgressChangedEventArgs>` / `IProgress<ByteProgress>` 更新 `Session.Progress` 与 `StatusMessage`；补全复用同一流程。
+- **安装 / 补全**：原版安装由 `GameLaunchCoordinator` → `MinecraftService.InstallAsync`，通过 `IProgress<InstallerProgressChangedEventArgs>` / `IProgress<ByteProgress>` 更新 `Session.Progress` 与 `StatusMessage`；加载器版本的补全会重新执行对应加载器安装。
+- **模组加载器**：版本库的「下载」不再直接安装，而是打开 `ModLoaderSelectorView`；可选原版 / Fabric / Forge / NeoForge / OptiFine，并选择加载器版本。
+  - Fabric：BMCLAPI Fabric Meta（官方 meta 回退）获取 profile json，写入版本目录后由 CmlLib 安装继承库与资源。
+  - Forge：BMCLAPI / 官方 Maven 下载 installer，`ForgeV12Installer` 执行 installer profile 与 processors。
+  - NeoForge：BMCLAPI 版本列表 + 镜像 installer，同一 V12 安装引擎执行 processors；maven.neoforged.net 库通过 BMCLAPI 镜像预下载。
+  - OptiFine：BMCLAPI 下载安装包，用内置 Java 8 兼容的 headless helper 调用 `optifine.Installer.doInstall`。
+  - 互斥：同一原版版本只保留一个加载器；安装/更换成功后，`GameLaunchCoordinator` 会删除该原版下其他加载器版本（保留存档/资源），并把当前启动设置复制到新加载器。
+  - 版本设置页可添加 / 更换 / 移除加载器；移除只删除加载器版本并回到原版，设置会尽量写回原版。
 - **启动游戏**：取 `GameVersionSettings` → 按 `LoginMode` 解析账户（当前账户 / Microsoft / 版本离线用户名）→ 校验 Java、内存、服务器 → 安装缺失文件 → `MinecraftService.BuildProcessAsync`（内存、窗口、JVM / 游戏参数、自动进服）→ 执行启动前命令（`cmd.exe`，5 分钟超时，非 0 退出码中止）→ 启动 Java 进程。
 - **版本设置持久化**：编辑字段后 500ms 防抖写入 `settings.json`，页面切换 / 关闭窗口 / 点击保存时立即 Flush；显示 `SaveState`。
 - **版本文件操作**：重命名会移动版本文件夹并同步 json 的 `id`、同名 jar、子版本 `inheritsFrom`，同时迁移 `versionSettings` 键；删除只移除版本目录与专属设置，保留共享存档 / 截图。
@@ -128,16 +145,18 @@ D:\PMCL
 
 - [ ] 安装进度百分比与下载速度显示
 - [x] 启动参数自定义（JVM 参数、游戏参数、启动前命令）
+- [x] Forge / Fabric / NeoForge / OptiFine 模组加载器安装
 - [ ] 日志查看器（`%APPDATA%\PMCL\logs`）
 - [ ] 多账户管理与账户切换体验优化
-- [ ] Forge / Fabric / NeoForge 模组加载器安装
 - [ ] 多语言（中 / 英）与主题切换
 - [ ] 自动更新与发布流水线
 
 ## 10. 已知约束
 
 - 仅支持 Windows（TFM、`cmd.exe` 启动前命令与 WebView2 登录限制）。
-- 原版启动器定位：不包含模组管理、整合包市场等功能。
+- 原版启动器定位：不包含模组文件管理、整合包市场等功能，仅负责加载器安装与启动。
 - 离线账户只能用于单人和局域网，不能进入正版服务器。
 - 版本重命名不支持“仅修改大小写”，且会重写该版本 json（保留结构但会格式化）；依赖外部硬编码旧版本名的第三方文件需自行调整。
+- 模组加载器安装依赖网络与 BMCLAPI / 官方 Maven / Fabric Meta；Forge 自动安装支持 1.12.2+，NeoForge 支持官方目录中存在的版本（通常 1.20.2+），OptiFine 仅列出 BMCLAPI 提供的稳定 HD U 版本。
+- 同一原版版本只保留一个模组加载器；安装/更换会删除该原版下其他加载器版本，因此 OptiFine 当前不能与 Forge/Fabric/NeoForge 叠加。
 - 导出的启动脚本包含当前登录令牌，令牌过期后需要重新导出。

@@ -30,7 +30,7 @@
                         <TextBlock Text="开启你的方块世界"
                                    Classes="h1"
                                    FontSize="32" />
-                        <TextBlock Text="从版本库下载原版游戏，为每个版本独立配置 Java、内存与启动参数。"
+                        <TextBlock Text="从版本库下载原版或模组加载器版本，为每个版本独立配置 Java、内存与启动参数。"
                                    Classes="muted"
                                    FontSize="13"
                                    MaxWidth="460"
@@ -51,6 +51,11 @@
                                             <TextBlock Text="{Binding TypeLabel}"
                                                        Classes="muted"
                                                        VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding LoaderBadge}"
+                                                       Classes="muted"
+                                                       Foreground="#C3B5FF"
+                                                       VerticalAlignment="Center"
+                                                       IsVisible="{Binding IsModded}" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>

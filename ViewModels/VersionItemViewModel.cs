@@ -5,24 +5,20 @@ using PMCL.Models;
 namespace PMCL.ViewModels;
 
 /// <summary>
-/// A version row with its own install/launch commands.
+/// A version row with its own download/repair command.
 /// </summary>
 public sealed class VersionItemViewModel : ViewModelBase
 {
     private readonly Func<GameVersion, Task> _installAsync;
-    private readonly Func<GameVersion, Task> _launchAsync;
 
     public VersionItemViewModel(
         GameVersion version,
-        Func<GameVersion, Task> installAsync,
-        Func<GameVersion, Task> launchAsync)
+        Func<GameVersion, Task> installAsync)
     {
         Version = version;
         _installAsync = installAsync;
-        _launchAsync = launchAsync;
 
         InstallCommand = new AsyncRelayCommand(() => _installAsync(Version));
-        LaunchCommand = new AsyncRelayCommand(() => _launchAsync(Version));
 
         Version.PropertyChanged += OnVersionPropertyChanged;
     }
@@ -31,11 +27,17 @@ public sealed class VersionItemViewModel : ViewModelBase
 
     public IAsyncRelayCommand InstallCommand { get; }
 
-    public IAsyncRelayCommand LaunchCommand { get; }
-
     public string StatusLabel => Version.IsInstalled ? "已安装" : "未安装";
 
-    public string InstallLabel => Version.IsInstalled ? "重新下载" : "下载";
+    public string InstallLabel => Version.IsModded
+        ? "管理加载器"
+        : Version.IsInstalled
+            ? "重新下载"
+            : "下载";
+
+    public string LoaderBadge => Version.LoaderBadge;
+
+    public bool HasLoader => Version.IsModded;
 
     private void OnVersionPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

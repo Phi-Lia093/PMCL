@@ -17,11 +17,16 @@ public sealed class GameLaunchCoordinator
 
     private readonly MinecraftService _minecraft;
     private readonly SettingsService _settingsService;
+    private readonly ModLoaderService _modLoaderService;
 
-    public GameLaunchCoordinator(MinecraftService minecraft, SettingsService settingsService)
+    public GameLaunchCoordinator(
+        MinecraftService minecraft,
+        SettingsService settingsService,
+        ModLoaderService? modLoaderService = null)
     {
         _minecraft = minecraft;
         _settingsService = settingsService;
+        _modLoaderService = modLoaderService ?? new ModLoaderService(minecraft);
     }
 
     public async Task InstallAsync(LauncherSession session, GameVersion version)
@@ -59,7 +64,34 @@ public sealed class GameLaunchCoordinator
 
         try
         {
-            await InstallCoreAsync(session, version, CancellationToken.None);
+            if (version.IsModded && !string.IsNullOrWhiteSpace(version.LoaderVersion))
+            {
+                var settings = session.Settings.GetVersionSettings(version.Name);
+                var fileProgress = CreateFileProgress(session, version.Name);
+                var byteProgress = CreateByteProgress(session, version.Name);
+                var installerOutput = new Progress<string>(line =>
+                {
+                    if (!string.IsNullOrWhiteSpace(line))
+                        session.SetStatus(line.Trim());
+                });
+
+                await _modLoaderService.InstallAsync(
+                        session.Settings.GameDirectory,
+                        version.BaseVersionName,
+                        version.LoaderKind,
+                        version.LoaderVersion,
+                        settings.JavaPath,
+                        fileProgress,
+                        byteProgress,
+                        installerOutput,
+                        CancellationToken.None)
+                    .ConfigureAwait(true);
+            }
+            else
+            {
+                await InstallCoreAsync(session, version, CancellationToken.None);
+            }
+
             session.MarkInstalled(version.Name);
             session.SetStatus($"Minecraft {version.Name} 文件补全完成");
         }
@@ -72,6 +104,192 @@ public sealed class GameLaunchCoordinator
             session.EndBusy();
         }
     }
+
+    /// <summary>
+    /// Installs a vanilla version or a mod loader profile and enforces one
+    /// loader per base Minecraft version by removing older loader profiles.
+    /// </summary>
+    public async Task<string?> InstallModLoaderAsync(
+        LauncherSession session,
+        GameVersion baseVersion,
+        ModLoaderKind kind,
+        string? loaderVersion,
+        string javaPath,
+        IReadOnlyList<string> existingLoaderNames,
+        string? sourceVersionName = null)
+    {
+        if (session.IsBusy)
+            return null;
+
+        session.BeginBusy(kind == ModLoaderKind.Vanilla
+            ? $"正在下载 Minecraft {baseVersion.Name}..."
+            : $"正在准备 {kind.ToDisplayName()} {kind.FormatLoaderVersion(loaderVersion ?? string.Empty)}...");
+
+        try
+        {
+            var effectiveSourceVersion = sourceVersionName ?? baseVersion.Name;
+            if (kind != ModLoaderKind.Vanilla
+                && string.Equals(effectiveSourceVersion, baseVersion.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                var existingProfiles = _minecraft.GetInstalledLoaderProfiles(
+                    session.Settings.GameDirectory,
+                    baseVersion.Name);
+                var preferredProfile = existingProfiles.FirstOrDefault(profile => profile.Kind == kind)
+                                       ?? existingProfiles.FirstOrDefault();
+                if (preferredProfile is not null)
+                    effectiveSourceVersion = preferredProfile.Name;
+            }
+
+            var sourceSettings = session.Settings
+                .GetVersionSettings(effectiveSourceVersion)
+                .Clone();
+
+            var fileProgress = CreateFileProgress(session, baseVersion.Name);
+            var byteProgress = CreateByteProgress(session, baseVersion.Name);
+            var installerOutput = new Progress<string>(line =>
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                    session.SetStatus(line.Trim());
+            });
+
+            var result = await _modLoaderService.InstallAsync(
+                    session.Settings.GameDirectory,
+                    baseVersion.Name,
+                    kind,
+                    loaderVersion,
+                    javaPath,
+                    fileProgress,
+                    byteProgress,
+                    installerOutput,
+                    CancellationToken.None)
+                .ConfigureAwait(true);
+
+            if (kind == ModLoaderKind.Vanilla)
+            {
+                session.MarkInstalled(baseVersion.Name);
+                _settingsService.SaveSilently(session.Settings);
+                session.SetStatus($"Minecraft {baseVersion.Name} 下载完成");
+                return result.VersionName;
+            }
+
+            var installedSettings = session.Settings.GetVersionSettings(result.VersionName);
+            installedSettings.CopyFrom(sourceSettings);
+
+            var actualLoaders = _minecraft.GetInstalledLoaderProfiles(
+                session.Settings.GameDirectory,
+                baseVersion.Name);
+            var removeNames = existingLoaderNames
+                .Concat(actualLoaders.Select(profile => profile.Name))
+                .Where(name => !string.Equals(
+                    name,
+                    result.VersionName,
+                    StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var removeName in removeNames)
+            {
+                var oldVersion = session.Versions.FirstOrDefault(version =>
+                    string.Equals(version.Name, removeName, StringComparison.OrdinalIgnoreCase));
+                if (oldVersion is not null)
+                    session.RemoveVersion(oldVersion);
+                else
+                    session.Settings.RemoveVersionSettings(removeName);
+
+                await Task.Run(
+                        () => _minecraft.DeleteVersion(session.Settings.GameDirectory, removeName))
+                    .ConfigureAwait(true);
+            }
+
+            _settingsService.SaveSilently(session.Settings);
+
+            session.SetStatus(
+                $"已安装 {kind.ToDisplayName()} {kind.FormatLoaderVersion(loaderVersion ?? string.Empty)}" +
+                $"（版本 {result.VersionName}）");
+            return result.VersionName;
+        }
+        catch (Exception ex)
+        {
+            session.SetError(
+                kind == ModLoaderKind.Vanilla
+                    ? $"下载 {baseVersion.Name} 失败：{ex.Message}"
+                    : $"安装 {kind.ToDisplayName()} 失败：{ex.Message}");
+            return null;
+        }
+        finally
+        {
+            session.EndBusy();
+        }
+    }
+
+    /// <summary>
+    /// Deletes a loader profile while keeping the vanilla base version. The
+    /// loader's launch settings are copied back to the base when possible.
+    /// </summary>
+    public async Task<bool> RemoveModLoaderAsync(LauncherSession session, GameVersion version)
+    {
+        if (session.IsBusy || !version.IsModded)
+            return false;
+
+        var gameDirectory = session.Settings.GameDirectory;
+        var baseVersionName = version.BaseVersionName;
+        if (string.IsNullOrWhiteSpace(baseVersionName)
+            || string.Equals(baseVersionName, version.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            session.SetError("无法确定此模组加载器对应的原版版本。");
+            return false;
+        }
+
+        session.BeginBusy($"正在移除 {version.LoaderLabel}...");
+
+        try
+        {
+            var loaderSettings = session.Settings.GetVersionSettings(version.Name).Clone();
+            var baseSettings = session.Settings.GetVersionSettings(baseVersionName);
+            baseSettings.CopyFrom(loaderSettings);
+
+            await Task.Run(() => _minecraft.DeleteVersion(gameDirectory, version.Name))
+                .ConfigureAwait(true);
+            session.RemoveVersion(version);
+            _settingsService.SaveSilently(session.Settings);
+
+            session.SetStatus($"已移除 {version.LoaderLabel}，保留原版版本 {baseVersionName}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            session.SetError($"移除模组加载器失败：{ex.Message}");
+            return false;
+        }
+        finally
+        {
+            session.EndBusy();
+        }
+    }
+
+    private static Progress<InstallerProgressChangedEventArgs> CreateFileProgress(
+        LauncherSession session,
+        string displayName)
+        => new(args =>
+        {
+            session.IsProgressIndeterminate = false;
+            var total = Math.Max(1, args.TotalTasks);
+            session.Progress = Math.Clamp((double)args.ProgressedTasks / total, 0, 1);
+            session.SetStatus(
+                $"正在下载 {displayName}（{args.ProgressedTasks}/{args.TotalTasks}） {args.Name}");
+        });
+
+    private static Progress<ByteProgress> CreateByteProgress(
+        LauncherSession session,
+        string displayName)
+        => new(progress =>
+        {
+            var ratio = progress.ToRatio();
+            if (ratio is > 0 and <= 1)
+                session.StatusMessage = $"正在下载 {displayName} ... {ratio:P0}";
+        });
+
+
+
 
     public async Task LaunchAsync(LauncherSession session, GameVersion version)
     {

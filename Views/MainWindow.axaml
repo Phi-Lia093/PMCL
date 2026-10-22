@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:PMCL.ViewModels"
+        xmlns:views="using:PMCL.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="800"
@@ -174,7 +175,7 @@
                                        VerticalAlignment="Center" />
                         </StackPanel>
                         <TextBlock Grid.Column="1"
-                                   Text="原版下载 · 版本独立配置 · Microsoft 登录"
+                                   Text="原版 / 模组加载器 · 版本独立配置 · Microsoft 登录"
                                    Classes="muted"
                                    FontSize="10"
                                    VerticalAlignment="Center" />
@@ -182,6 +183,22 @@
                 </Border>
             </Grid>
         </Grid>
+
+        <Border Background="#CC070A10"
+                IsVisible="{Binding Versions.LoaderSelector.IsOpen}">
+            <views:ModLoaderSelectorView DataContext="{Binding Versions.LoaderSelector}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"
+                                         Margin="24" />
+        </Border>
+
+        <Border Background="#CC070A10"
+                IsVisible="{Binding VersionSettings.LoaderSelector.IsOpen}">
+            <views:ModLoaderSelectorView DataContext="{Binding VersionSettings.LoaderSelector}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"
+                                         Margin="24" />
+        </Border>
 
         <Border Background="#C4070A10"
                 IsVisible="{Binding Session.IsBusy}">

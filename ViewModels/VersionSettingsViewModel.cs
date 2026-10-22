@@ -31,6 +31,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         SettingsService settingsService,
         MinecraftService minecraft,
         StoragePickerService picker,
+        ModLoaderService modLoaderService,
         Func<Task> refreshVersionsAsync,
         Action goBack)
     {
@@ -42,9 +43,18 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         _picker = picker;
         _refreshVersionsAsync = refreshVersionsAsync;
         _goBack = goBack;
+        LoaderSelector = new ModLoaderSelectorViewModel(modLoaderService, minecraft, picker);
     }
 
     public LauncherSession Session { get; }
+
+    public ModLoaderSelectorViewModel LoaderSelector { get; }
+
+    public void CloseLoaderDialog()
+    {
+        if (LoaderSelector.IsOpen && !LoaderSelector.IsInstalling)
+            LoaderSelector.CloseCommand.Execute(null);
+    }
 
     public GameVersion? Version
     {
@@ -61,6 +71,18 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     public string VersionStatusText => _version is { IsInstalled: true } ? "已安装" : "未安装";
 
     public string VersionTypeLabel => _version?.TypeLabel ?? string.Empty;
+
+    public bool HasModLoader => _version?.IsModded == true;
+
+    public bool IsVanillaVersion => _version is { IsModded: false };
+
+    public bool CanManageModLoader => _version is { IsInstalled: true };
+
+    public string CurrentLoaderLabel => _version?.LoaderLabel ?? "原版";
+
+    public string LoaderBaseVersionLabel => _version is { IsModded: true }
+        ? $"基于原版 {_version.BaseVersionName}"
+        : "当前为原版版本，可以添加一个模组加载器。";
 
     public string VersionDirectory => _version is null
         ? string.Empty
@@ -137,6 +159,9 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     public partial bool IsDeleteConfirmVisible { get; set; }
 
     [ObservableProperty]
+    public partial bool IsRemoveLoaderConfirmVisible { get; set; }
+
+    [ObservableProperty]
     public partial string SaveState { get; set; } = "修改会自动保存";
 
     public bool IsOfflineLogin => SelectedLoginModeIndex == 2;
@@ -145,7 +170,8 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
     public void Open(GameVersion version)
     {
-        if (_version is not null)
+        if (_version is not null
+            && _session.Settings.VersionSettings.ContainsKey(_version.Name))
         {
             _saveDebounce?.Cancel();
             SaveNow(reportStatus: false);
@@ -179,6 +205,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         GameArguments = _model.GameArguments;
         PreLaunchCommand = _model.PreLaunchCommand;
         IsDeleteConfirmVisible = false;
+        IsRemoveLoaderConfirmVisible = false;
         SaveState = "修改会自动保存";
 
         _loading = false;
@@ -219,6 +246,98 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
     [RelayCommand]
     private void ClearJavaPath() => JavaPath = string.Empty;
+
+    [RelayCommand]
+    private async Task AddOrChangeLoaderAsync()
+    {
+        if (_version is null || !_version.IsInstalled || Session.IsBusy)
+            return;
+
+        _saveDebounce?.Cancel();
+        if (!SaveNow(reportStatus: false))
+        {
+            Session.SetError($"无法添加模组加载器：{SaveState}");
+            return;
+        }
+
+        var sourceVersionName = _version.Name;
+        var baseVersionName = _version.BaseVersionName;
+        var baseVersion = _session.FindVersion(baseVersionName)
+                          ?? new GameVersion(
+                              baseVersionName,
+                              "release",
+                              DateTimeOffset.Now,
+                              isInstalled: false);
+        var initialJava = JavaPath;
+
+        await LoaderSelector.OpenAsync(
+            baseVersion,
+            _session.Settings.GameDirectory,
+            allowVanilla: false,
+            initialJava,
+            async selection =>
+            {
+                var installedName = await _coordinator.InstallModLoaderAsync(
+                    _session,
+                    baseVersion,
+                    selection.Kind,
+                    selection.LoaderVersion,
+                    selection.JavaPath,
+                    selection.ExistingLoaderNames,
+                    sourceVersionName);
+
+                if (string.IsNullOrWhiteSpace(installedName))
+                    return false;
+
+                await _refreshVersionsAsync();
+                var installedVersion = _session.FindVersion(installedName);
+                if (installedVersion is null)
+                    return false;
+
+                _session.SelectVersion(installedName);
+                Open(installedVersion);
+                return true;
+            });
+    }
+
+    [RelayCommand]
+    private void RequestRemoveLoader()
+    {
+        if (_version is { IsModded: true } && !Session.IsBusy)
+            IsRemoveLoaderConfirmVisible = true;
+    }
+
+    [RelayCommand]
+    private void CancelRemoveLoader() => IsRemoveLoaderConfirmVisible = false;
+
+    [RelayCommand]
+    private async Task ConfirmRemoveLoaderAsync()
+    {
+        if (_version is not { IsModded: true } || Session.IsBusy)
+            return;
+
+        var baseVersionName = _version.BaseVersionName;
+        IsRemoveLoaderConfirmVisible = false;
+        _saveDebounce?.Cancel();
+        SaveNow(reportStatus: false);
+
+        var removed = await _coordinator.RemoveModLoaderAsync(Session, _version);
+        if (!removed)
+            return;
+
+        await _refreshVersionsAsync();
+        var baseVersion = _session.FindVersion(baseVersionName);
+        if (baseVersion is { IsInstalled: true })
+        {
+            _session.SelectVersion(baseVersion.Name);
+            Open(baseVersion);
+            return;
+        }
+
+        _goBack();
+    }
+
+
 
     [RelayCommand]
     private void OpenVersionFolder() => OpenFolder(VersionDirectory, create: false);
@@ -327,6 +446,14 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             if (!_settingsService.TrySave(_session.Settings, out var saveError))
                 throw new InvalidOperationException($"版本文件已重命名，但设置保存失败：{saveError}");
 
+            await _refreshVersionsAsync();
+            if (Session.LastError is null)
+            {
+                var renamedVersion = _session.FindVersion(newName);
+                if (renamedVersion is not null)
+                    Open(renamedVersion);
+            }
+
             SaveState = "版本已重命名";
             NotifyVersionDerived();
             Session.SetStatus($"版本已重命名为 {newName}");
@@ -354,6 +481,19 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             return;
 
         var version = _version;
+        if (!version.IsModded)
+        {
+            var loaders = _minecraft.GetInstalledLoaderProfiles(
+                _session.Settings.GameDirectory,
+                version.Name);
+            if (loaders.Count > 0)
+            {
+                IsDeleteConfirmVisible = false;
+                Session.SetError("该版本仍有模组加载器，请先在版本设置中移除加载器，再删除原版版本。");
+                return;
+            }
+        }
+
         _saveDebounce?.Cancel();
         Session.BeginBusy($"正在删除版本 {version.Name}...");
 
@@ -513,6 +653,11 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(DetectedJavaText));
         OnPropertyChanged(nameof(IsOfflineLogin));
         OnPropertyChanged(nameof(IsMicrosoftLogin));
+        OnPropertyChanged(nameof(HasModLoader));
+        OnPropertyChanged(nameof(IsVanillaVersion));
+        OnPropertyChanged(nameof(CanManageModLoader));
+        OnPropertyChanged(nameof(CurrentLoaderLabel));
+        OnPropertyChanged(nameof(LoaderBaseVersionLabel));
     }
 
     partial void OnJavaPathChanged(string value) => QueueSave();

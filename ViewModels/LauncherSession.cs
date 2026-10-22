@@ -198,6 +198,17 @@ public sealed partial class LauncherSession : ObservableObject
             ?? InstalledVersions.FirstOrDefault();
     }
 
+    public GameVersion? FindVersion(string versionName)
+        => Versions.FirstOrDefault(version =>
+            string.Equals(version.Name, versionName, StringComparison.OrdinalIgnoreCase));
+
+    public void SelectVersion(string versionName)
+    {
+        var version = FindVersion(versionName);
+        if (version is { IsInstalled: true })
+            SelectedVersion = version;
+    }
+
     public void RenameVersion(string oldName, string newName)
     {
         var version = Versions.FirstOrDefault(candidate =>

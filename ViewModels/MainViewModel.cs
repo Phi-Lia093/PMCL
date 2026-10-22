@@ -24,7 +24,8 @@ public sealed partial class MainViewModel : ViewModelBase
         Session = session;
         _authentication = authentication;
         _minecraft = minecraft;
-        var coordinator = new GameLaunchCoordinator(minecraft, settingsService);
+        var modLoaderService = new ModLoaderService(minecraft);
+        var coordinator = new GameLaunchCoordinator(minecraft, settingsService, modLoaderService);
 
         Account = new AccountViewModel(session, authentication, settingsService);
         VersionSettings = new VersionSettingsViewModel(
@@ -33,6 +34,7 @@ public sealed partial class MainViewModel : ViewModelBase
             settingsService,
             minecraft,
             picker,
+            modLoaderService,
             RefreshVersionsAsync,
             NavigateHome);
         Home = new HomeViewModel(
@@ -41,7 +43,13 @@ public sealed partial class MainViewModel : ViewModelBase
             RefreshVersionsAsync,
             () => CurrentPage = Account,
             OpenVersionSettings);
-        Versions = new VersionsViewModel(session, coordinator, RefreshVersionsAsync);
+        Versions = new VersionsViewModel(
+            session,
+            coordinator,
+            modLoaderService,
+            minecraft,
+            picker,
+            RefreshVersionsAsync);
         Settings = new SettingsViewModel(session, settingsService, picker, paths, RefreshVersionsAsync);
 
         CurrentPage = Home;
@@ -84,10 +92,10 @@ public sealed partial class MainViewModel : ViewModelBase
     public string PageSubtitle => CurrentPage switch
     {
         HomeViewModel => "欢迎使用 PMCL，准备好开始游戏了吗？",
-        VersionsViewModel => "浏览 Mojang 官方版本，下载后即可在主页启动。",
+        VersionsViewModel => "浏览 Mojang 官方版本，下载时选择原版或 Forge / Fabric / NeoForge / OptiFine。",
         AccountViewModel => "使用 Microsoft 正版账户，或创建本地离线账户。",
         SettingsViewModel => "管理游戏目录、界面语言与启动器数据。",
-        VersionSettingsViewModel => "为此版本单独配置 Java、内存、登录方式与启动参数。",
+        VersionSettingsViewModel => "为此版本单独配置 Java、内存、登录方式、模组加载器与启动参数。",
         _ => "Philia093's MineCraft Launcher"
     };
 
@@ -135,6 +143,8 @@ public sealed partial class MainViewModel : ViewModelBase
     private void NavigateHome()
     {
         VersionSettings.Flush();
+        Versions.CloseLoaderDialog();
+        VersionSettings.CloseLoaderDialog();
         Session.EnsureInstalledSelection();
         CurrentPage = Home;
     }
@@ -144,6 +154,8 @@ public sealed partial class MainViewModel : ViewModelBase
         if (!version.IsInstalled)
             return;
 
+        Versions.CloseLoaderDialog();
+        VersionSettings.CloseLoaderDialog();
         VersionSettings.Open(version);
         CurrentPage = VersionSettings;
     }
@@ -152,6 +164,8 @@ public sealed partial class MainViewModel : ViewModelBase
     private void NavigateVersions()
     {
         VersionSettings.Flush();
+        Versions.CloseLoaderDialog();
+        VersionSettings.CloseLoaderDialog();
         CurrentPage = Versions;
     }
 
@@ -159,6 +173,8 @@ public sealed partial class MainViewModel : ViewModelBase
     private void NavigateAccount()
     {
         VersionSettings.Flush();
+        Versions.CloseLoaderDialog();
+        VersionSettings.CloseLoaderDialog();
         CurrentPage = Account;
     }
 
@@ -166,6 +182,8 @@ public sealed partial class MainViewModel : ViewModelBase
     private void NavigateSettings()
     {
         VersionSettings.Flush();
+        Versions.CloseLoaderDialog();
+        VersionSettings.CloseLoaderDialog();
         CurrentPage = Settings;
     }
 

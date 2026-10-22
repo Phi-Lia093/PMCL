@@ -8,7 +8,9 @@ using PMCL.Services;
 namespace PMCL.ViewModels;
 
 /// <summary>
-/// Version browser with search, type filter and per-row actions.
+/// Version browser with search, type filter and per-row actions. Downloading
+/// always goes through the mod loader picker so a version is installed either
+/// vanilla or with exactly one loader.
 /// </summary>
 public sealed partial class VersionsViewModel : ViewModelBase
 {
@@ -18,17 +20,29 @@ public sealed partial class VersionsViewModel : ViewModelBase
     public VersionsViewModel(
         LauncherSession session,
         GameLaunchCoordinator coordinator,
+        ModLoaderService modLoaderService,
+        MinecraftService minecraft,
+        StoragePickerService picker,
         Func<Task> refreshVersionsAsync)
     {
         Session = session;
         _coordinator = coordinator;
         _refreshVersionsAsync = refreshVersionsAsync;
+        LoaderSelector = new ModLoaderSelectorViewModel(modLoaderService, minecraft, picker);
 
         Session.Versions.CollectionChanged += OnVersionsChanged;
         RebuildItems();
     }
 
     public LauncherSession Session { get; }
+
+    public ModLoaderSelectorViewModel LoaderSelector { get; }
+
+    public void CloseLoaderDialog()
+    {
+        if (LoaderSelector.IsOpen && !LoaderSelector.IsInstalling)
+            LoaderSelector.CloseCommand.Execute(null);
+    }
 
     public ObservableCollection<VersionItemViewModel> Items { get; } = new();
 
@@ -49,6 +63,10 @@ public sealed partial class VersionsViewModel : ViewModelBase
     [ObservableProperty]
     public partial VersionItemViewModel? SelectedItem { get; set; }
 
+    private GameVersion? PendingBaseVersion { get; set; }
+
+    private string? PendingSourceVersionName { get; set; }
+
     [RelayCommand]
     private async Task RefreshAsync()
     {
@@ -58,16 +76,30 @@ public sealed partial class VersionsViewModel : ViewModelBase
 
     [RelayCommand]
     private Task InstallAsync(VersionItemViewModel? item)
-        => item is null ? Task.CompletedTask : _coordinator.InstallAsync(Session, item.Version);
+        => item is null ? Task.CompletedTask : OpenDownloadAsync(item.Version);
 
-    [RelayCommand]
-    private async Task LaunchAsync(VersionItemViewModel? item)
+    private async Task OpenDownloadAsync(GameVersion version)
     {
-        if (item is null)
-            return;
+        var baseVersion = version;
+        if (version.IsModded)
+        {
+            baseVersion = Session.FindVersion(version.BaseVersionName)
+                          ?? new GameVersion(
+                              version.BaseVersionName,
+                              version.Type,
+                              version.ReleaseTime,
+                              isInstalled: false);
+        }
 
-        Session.SelectedVersion = item.Version;
-        await _coordinator.LaunchAsync(Session, item.Version);
+        PendingBaseVersion = baseVersion;
+        PendingSourceVersionName = version.Name;
+        var initialJava = Session.Settings.GetVersionSettings(version.Name).JavaPath;
+        await LoaderSelector.OpenAsync(
+            baseVersion,
+            Session.Settings.GameDirectory,
+            allowVanilla: true,
+            initialJava,
+            InstallSelectionAsync);
     }
 
     [RelayCommand]
@@ -75,6 +107,31 @@ public sealed partial class VersionsViewModel : ViewModelBase
     {
         if (item is not null)
             Session.SelectedVersion = item.Version;
+    }
+
+    private async Task<bool> InstallSelectionAsync(ModLoaderSelection selection)
+    {
+        var baseVersion = PendingBaseVersion;
+        if (baseVersion is null)
+            return false;
+
+        var installedName = await _coordinator.InstallModLoaderAsync(
+            Session,
+            baseVersion,
+            selection.Kind,
+            selection.LoaderVersion,
+            selection.JavaPath,
+            selection.ExistingLoaderNames,
+            PendingSourceVersionName);
+
+        if (string.IsNullOrWhiteSpace(installedName))
+            return false;
+
+        await _refreshVersionsAsync();
+        Session.SelectVersion(installedName);
+        RebuildItems();
+        return Session.Versions.Any(version =>
+            string.Equals(version.Name, installedName, StringComparison.OrdinalIgnoreCase));
     }
 
     partial void OnSearchTextChanged(string value) => RebuildItems();
@@ -125,12 +182,7 @@ public sealed partial class VersionsViewModel : ViewModelBase
         {
             Items.Add(new VersionItemViewModel(
                 version,
-                v => _coordinator.InstallAsync(Session, v),
-                v =>
-                {
-                    Session.SelectedVersion = v;
-                    return _coordinator.LaunchAsync(Session, v);
-                }));
+                OpenDownloadAsync));
         }
 
         Summary = Session.Versions.Count == 0

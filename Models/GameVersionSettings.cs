@@ -68,4 +68,33 @@ public sealed partial class GameVersionSettings : ObservableObject
     partial void OnMinimumRamMbChanged(int value) => OnPropertyChanged(nameof(MemoryDisplay));
 
     partial void OnMaximumRamMbChanged(int value) => OnPropertyChanged(nameof(MemoryDisplay));
+
+    /// <summary>
+    /// Copies every persisted launch option. Used when a loader profile is
+    /// created, replaced or removed so the user keeps Java/RAM/login settings.
+    /// </summary>
+    public void CopyFrom(GameVersionSettings source)
+    {
+        JavaPath = source.JavaPath;
+        MinimumRamMb = source.MinimumRamMb;
+        MaximumRamMb = source.MaximumRamMb;
+        WindowWidth = source.WindowWidth;
+        WindowHeight = source.WindowHeight;
+        FullScreen = source.FullScreen;
+        LoginMode = source.LoginMode;
+        OfflineUsername = source.OfflineUsername;
+        AutoJoinServer = source.AutoJoinServer;
+        ServerAddress = source.ServerAddress;
+        ServerPort = source.ServerPort;
+        JvmArguments = source.JvmArguments;
+        GameArguments = source.GameArguments;
+        PreLaunchCommand = source.PreLaunchCommand;
+    }
+
+    public GameVersionSettings Clone()
+    {
+        var copy = new GameVersionSettings();
+        copy.CopyFrom(this);
+        return copy;
+    }
 }
