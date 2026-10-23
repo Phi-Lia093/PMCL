@@ -133,6 +133,60 @@
                 </StackPanel>
             </Border>
 
+            <Border Classes="card">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="游戏数据目录（自动隔离）" Classes="h2" FontSize="16" />
+                        <TextBlock Text="每个版本都有独立的游戏目录：存档、截图、mods、config、resourcepacks、shaderpacks 与 options.txt 都保存在这里，模组不会串到其它版本；libraries、assets 与 runtime 仍共享，不会重复下载。"
+                                   Classes="muted"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="当前游戏目录" Classes="label" />
+                        <Border Background="{StaticResource FieldBrush}"
+                                BorderBrush="#263045"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="12">
+                            <TextBlock Text="{Binding GameDirectory}"
+                                       Classes="muted"
+                                       TextWrapping="Wrap" />
+                        </Border>
+                    </StackPanel>
+
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                        <Button Grid.Column="0"
+                                Classes="secondary"
+                                HorizontalAlignment="Stretch"
+                                Content="打开游戏目录"
+                                Command="{Binding OpenGameFolderCommand}" />
+                        <Button Grid.Column="1"
+                                Classes="secondary"
+                                HorizontalAlignment="Stretch"
+                                Content="打开 mods"
+                                Command="{Binding OpenModsFolderCommand}" />
+                        <Button Grid.Column="2"
+                                Classes="secondary"
+                                HorizontalAlignment="Stretch"
+                                Content="打开 config"
+                                Command="{Binding OpenConfigFolderCommand}" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                        <Button Classes="secondary"
+                                Content="导入旧共享数据"
+                                IsEnabled="{Binding CanImportSharedData}"
+                                Command="{Binding ImportSharedDataCommand}" />
+                        <TextBlock Grid.Column="1"
+                                   Text="用于从旧版共享布局迁移：把共享 .minecraft 中的 存档、截图、mods、config、resourcepacks、shaderpacks 与 options.txt 复制到本版本（只复制、不移动，且不覆盖同名文件）。"
+                                   Classes="muted"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <Border Classes="card" IsVisible="{Binding CanManageModLoader}">
                 <StackPanel Spacing="14">
                     <TextBlock Text="模组加载器" Classes="h2" FontSize="16" />
@@ -173,7 +227,7 @@
                                Classes="muted"
                                TextWrapping="Wrap" />
 
-                    <TextBlock Text="同一 Minecraft 版本只保留一个模组加载器。添加或更换会自动下载对应加载器，并替换旧的加载器版本；存档、截图和资源文件不会删除。移除加载器后会回到原版版本，版本设置会尽量保留。"
+                    <TextBlock Text="同一 Minecraft 版本只保留一个模组加载器。添加或更换会自动下载对应加载器，并替换旧的加载器版本；该版本的存档、截图与模组会先迁移到新加载器，不会随旧版本删除。移除加载器后会把数据合并回原版版本，版本设置会尽量保留。"
                                Classes="muted"
                                TextWrapping="Wrap" />
 
@@ -197,6 +251,212 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="14">
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="已安装模组" Classes="h2" FontSize="16" />
+                            <TextBlock Text="{Binding ModsDirectory}"
+                                       Classes="muted"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Classes="secondary"
+                                Content="刷新"
+                                Command="{Binding RefreshModsCommand}" />
+                        <Button Grid.Column="2"
+                                Classes="secondary"
+                                Content="打开 mods"
+                                Command="{Binding OpenModsFolderCommand}" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <TextBox Text="{Binding LocalModSearchText}"
+                                 PlaceholderText="搜索本地模组文件名" />
+                        <CheckBox Grid.Column="1"
+                                  Content="显示已禁用"
+                                  IsChecked="{Binding ShowDisabledMods}"
+                                  VerticalAlignment="Center" />
+                    </Grid>
+
+                    <TextBlock Text="{Binding LocalModStatusText}"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+
+                    <Border IsVisible="{Binding HasNoLocalMods}"
+                            Background="{StaticResource FieldBrush}"
+                            BorderBrush="#263045"
+                            BorderThickness="1"
+                            CornerRadius="10"
+                            Padding="14">
+                        <TextBlock Text="没有找到模组文件。把手动下载的 .jar 放进 mods 文件夹，或使用下方 Modrinth 搜索。"
+                                   Classes="muted"
+                                   TextWrapping="Wrap" />
+                    </Border>
+
+                    <ItemsControl ItemsSource="{Binding LocalMods}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ModItemViewModel">
+                                <Border Background="{StaticResource FieldBrush}"
+                                        BorderBrush="#263045"
+                                        BorderThickness="1"
+                                        CornerRadius="10"
+                                        Padding="12"
+                                        Margin="0,0,0,8">
+                                    <StackPanel Spacing="8">
+                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                                            <StackPanel Spacing="3">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontWeight="SemiBold" />
+                                                    <Border Background="{StaticResource AccentSoftBrush}"
+                                                            CornerRadius="6"
+                                                            Padding="7,1"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding StatusText}"
+                                                                   FontSize="10"
+                                                                   Foreground="#C3B5FF" />
+                                                    </Border>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding FileName}"
+                                                           Classes="muted"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding SizeText}"
+                                                       Classes="muted"
+                                                       VerticalAlignment="Center" />
+
+                                            <StackPanel Grid.Column="2"
+                                                        Orientation="Horizontal"
+                                                        Spacing="8"
+                                                        VerticalAlignment="Center">
+                                                <Button Classes="secondary"
+                                                        Padding="12,7"
+                                                        Content="{Binding ToggleLabel}"
+                                                        ToolTip.Tip="{Binding ToggleHint}"
+                                                        Command="{Binding ToggleCommand}" />
+                                                <Button Classes="danger"
+                                                        Padding="12,7"
+                                                        Content="删除"
+                                                        IsVisible="{Binding !IsDeleteConfirmVisible}"
+                                                        Command="{Binding RequestDeleteCommand}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Border IsVisible="{Binding IsDeleteConfirmVisible}"
+                                                Background="#2A1620"
+                                                BorderBrush="#6E2B39"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Padding="10">
+                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                                <TextBlock Text="删除后无法恢复，确定继续吗？"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           VerticalAlignment="Center" />
+                                                <Button Grid.Column="1"
+                                                        Classes="danger"
+                                                        Padding="12,6"
+                                                        Content="确认删除"
+                                                        Command="{Binding ConfirmDeleteCommand}" />
+                                                <Button Grid.Column="2"
+                                                        Classes="secondary"
+                                                        Padding="12,6"
+                                                        Content="取消"
+                                                        Command="{Binding CancelDeleteCommand}" />
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="从 Modrinth 下载模组" Classes="h2" FontSize="16" />
+                        <TextBlock Text="{Binding ModrinthCompatibilityText}"
+                                   Classes="muted"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <TextBox Text="{Binding ModrinthSearchText}"
+                                 PlaceholderText="搜索 Modrinth 模组；留空显示热门兼容模组"
+                                 IsEnabled="{Binding CanUseModrinth}" />
+                        <Button Grid.Column="1"
+                                Classes="primary"
+                                Content="{Binding ModrinthSearchButtonText}"
+                                IsEnabled="{Binding CanSearchModrinth}"
+                                Command="{Binding SearchModrinthCommand}" />
+                    </Grid>
+
+                    <TextBlock Text="{Binding ModrinthStatusText}"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+
+                    <ItemsControl ItemsSource="{Binding ModrinthResults}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ModrinthProjectItemViewModel">
+                                <Border Background="{StaticResource FieldBrush}"
+                                        BorderBrush="#263045"
+                                        BorderThickness="1"
+                                        CornerRadius="10"
+                                        Padding="12"
+                                        Margin="0,0,0,8">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                        <StackPanel Spacing="4">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="{Binding Title}"
+                                                           FontWeight="SemiBold" />
+                                                <Border Background="#1B2233"
+                                                        CornerRadius="6"
+                                                        Padding="7,1"
+                                                        VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding VersionSummary}"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Description}"
+                                                       Classes="muted"
+                                                       TextWrapping="Wrap" />
+                                            <TextBlock Text="{Binding AuthorText}"
+                                                       Classes="muted"
+                                                       FontSize="10" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1"
+                                                    Spacing="6"
+                                                    VerticalAlignment="Center"
+                                                    HorizontalAlignment="Right">
+                                            <Button Classes="primary"
+                                                    Padding="14,8"
+                                                    Content="{Binding InstallLabel}"
+                                                    IsEnabled="{Binding !IsInstalling}"
+                                                    Command="{Binding InstallCommand}" />
+                                            <TextBlock Text="{Binding DownloadsText}"
+                                                       Classes="muted"
+                                                       FontSize="10"
+                                                       HorizontalAlignment="Right" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="安装时会自动选择与当前 Minecraft 版本和加载器兼容的最新文件，并递归下载所有必需的前置模组；同名文件不会覆盖。可选前置模组请按需手动安装。"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 
@@ -358,7 +618,7 @@
                                FontSize="16"
                                Foreground="{StaticResource DangerBrush}" />
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                        <TextBlock Text="删除此版本会移除整个版本文件夹及其专属设置；共享的存档、截图和资源文件不会被删除。"
+                        <TextBlock Text="{Binding DeleteWarningText}"
                                    Classes="muted"
                                    TextWrapping="Wrap"
                                    VerticalAlignment="Center" />

@@ -186,8 +186,30 @@ public sealed class GameLaunchCoordinator
                     StringComparison.OrdinalIgnoreCase))
                 .Distinct(StringComparer.OrdinalIgnoreCase);
 
+            // Saves/mods live inside each version folder. Copy them into the
+            // new profile before the old loader folders are deleted so
+            // switching loaders never loses user data.
+            var targetGameDirectory = _minecraft.GetGameDirectory(
+                session.Settings.GameDirectory,
+                result.VersionName);
+
+            var mergeSourceVersion = effectiveSourceVersion;
+            await Task.Run(() => VersionIsolationService.MergeVersionData(
+                    session.Settings.GameDirectory,
+                    mergeSourceVersion,
+                    targetGameDirectory))
+                .ConfigureAwait(true);
+
             foreach (var removeName in removeNames)
             {
+                var nameToMerge = removeName;
+                var mergeTarget = targetGameDirectory;
+                await Task.Run(() => VersionIsolationService.MergeVersionData(
+                        session.Settings.GameDirectory,
+                        nameToMerge,
+                        mergeTarget))
+                    .ConfigureAwait(true);
+
                 var oldVersion = session.Versions.FirstOrDefault(version =>
                     string.Equals(version.Name, removeName, StringComparison.OrdinalIgnoreCase));
                 if (oldVersion is not null)
@@ -246,6 +268,18 @@ public sealed class GameLaunchCoordinator
             var loaderSettings = session.Settings.GetVersionSettings(version.Name).Clone();
             var baseSettings = session.Settings.GetVersionSettings(baseVersionName);
             baseSettings.CopyFrom(loaderSettings);
+
+            // The loader folder may contain saves/mods. Move them to the base
+            // version folder before deleting it.
+            var mergeSource = version.Name;
+            var mergeTarget = _minecraft.GetGameDirectory(
+                gameDirectory,
+                baseVersionName);
+            await Task.Run(() => VersionIsolationService.MergeVersionData(
+                    gameDirectory,
+                    mergeSource,
+                    mergeTarget))
+                .ConfigureAwait(true);
 
             await Task.Run(() => _minecraft.DeleteVersion(gameDirectory, version.Name))
                 .ConfigureAwait(true);
@@ -340,6 +374,10 @@ public sealed class GameLaunchCoordinator
             session.IsProgressIndeterminate = true;
             session.SetStatus("正在构建游戏进程...");
 
+            var gameDirectory = _minecraft.GetGameDirectory(
+                session.Settings.GameDirectory,
+                version.Name);
+
             var process = await _minecraft.BuildProcessAsync(
                 session.Settings.GameDirectory,
                 version.Name,
@@ -352,7 +390,8 @@ public sealed class GameLaunchCoordinator
                 session.SetStatus("正在执行启动前命令...");
                 await RunPreLaunchCommandAsync(
                     settings.PreLaunchCommand,
-                    session.Settings.GameDirectory,
+                    gameDirectory,
+                    _minecraft.GetVersionDirectory(session.Settings.GameDirectory, version.Name),
                     version);
             }
 
@@ -419,7 +458,10 @@ public sealed class GameLaunchCoordinator
                 process,
                 settings,
                 version,
-                session.Settings.GameDirectory);
+                _minecraft.GetGameDirectory(
+                    session.Settings.GameDirectory,
+                    version.Name),
+                _minecraft.GetVersionDirectory(session.Settings.GameDirectory, version.Name));
 
             var directory = Path.GetDirectoryName(targetPath);
             if (!string.IsNullOrWhiteSpace(directory))
@@ -486,9 +528,9 @@ public sealed class GameLaunchCoordinator
     private static async Task RunPreLaunchCommandAsync(
         string command,
         string gameDirectory,
+        string versionDirectory,
         GameVersion version)
     {
-        var versionDirectory = Path.Combine(gameDirectory, "versions", version.Name);
         var expandedCommand = command
             .Replace("{gameDir}", gameDirectory, StringComparison.OrdinalIgnoreCase)
             .Replace("{versionDir}", versionDirectory, StringComparison.OrdinalIgnoreCase)
@@ -570,9 +612,9 @@ public sealed class GameLaunchCoordinator
         Process process,
         GameVersionSettings settings,
         GameVersion version,
-        string gameDirectory)
+        string gameDirectory,
+        string versionDirectory)
     {
-        var versionDirectory = Path.Combine(gameDirectory, "versions", version.Name);
         var builder = new StringBuilder();
 
         builder.AppendLine("@echo off");

@@ -82,7 +82,7 @@
                             <TextBlock Text="{Binding ExistingLoaderText}"
                                        Classes="muted"
                                        TextWrapping="Wrap" />
-                            <TextBlock Text="继续安装会替换同一游戏版本下现有的加载器版本（相同版本则重新安装），只保留本次选择的加载器。存档与资源文件不会删除。"
+                            <TextBlock Text="继续安装会替换同一游戏版本下现有的加载器版本（相同版本则重新安装），只保留本次选择的加载器。该版本的存档、截图与模组会先迁移到新加载器，不会随旧版本删除。"
                                        Classes="muted"
                                        TextWrapping="Wrap" />
                         </StackPanel>

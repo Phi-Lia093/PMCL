@@ -33,6 +33,8 @@ public sealed partial class MainViewModel : ViewModelBase
             minecraft,
             picker,
             modLoaderService,
+            new ModService(),
+            new ModrinthService(),
             RefreshVersionsAsync,
             NavigateHome);
         Home = new HomeViewModel(

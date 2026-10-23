@@ -311,7 +311,11 @@ public sealed class MinecraftService
 
         var option = new MLaunchOption
         {
-            Path = path,
+            // Version isolation is mandatory: version metadata, libraries,
+            // assets and runtime stay on the shared root, but the game runs
+            // inside its own folder so saves/mods/config never leak between
+            // versions.
+            Path = CreateIsolatedPath(path, versionName),
             Session = session,
             MaximumRamMb = settings.MaximumRamMb,
             MinimumRamMb = settings.MinimumRamMb,
@@ -343,11 +347,24 @@ public sealed class MinecraftService
     public string GetVersionDirectory(string gameDirectory, string versionName)
         => Path.Combine(CreatePath(gameDirectory).Versions, versionName);
 
-    public string GetSavesDirectory(string gameDirectory)
-        => Path.Combine(CreatePath(gameDirectory).BasePath, "saves");
+    /// <summary>
+    /// Working directory used for launching the version. Versions are always
+    /// isolated, so this is the version folder itself.
+    /// </summary>
+    public string GetGameDirectory(string gameDirectory, string versionName)
+        => VersionIsolationService.GetEffectiveGameDirectory(gameDirectory, versionName);
 
-    public string GetScreenshotsDirectory(string gameDirectory)
-        => Path.Combine(CreatePath(gameDirectory).BasePath, "screenshots");
+    public string GetSavesDirectory(string gameDirectory, string versionName)
+        => Path.Combine(GetGameDirectory(gameDirectory, versionName), "saves");
+
+    public string GetScreenshotsDirectory(string gameDirectory, string versionName)
+        => Path.Combine(GetGameDirectory(gameDirectory, versionName), "screenshots");
+
+    public string GetModsDirectory(string gameDirectory, string versionName)
+        => Path.Combine(GetGameDirectory(gameDirectory, versionName), "mods");
+
+    public string GetConfigDirectory(string gameDirectory, string versionName)
+        => Path.Combine(GetGameDirectory(gameDirectory, versionName), "config");
 
     /// <summary>
     /// Renames an installed version folder, its metadata/jar files and the id in
@@ -409,7 +426,8 @@ public sealed class MinecraftService
     }
 
     /// <summary>
-    /// Deletes a version folder. Saves, screenshots and other shared game data are kept.
+    /// Deletes a version folder. Because versions are always isolated, the
+    /// folder also contains that version's saves, screenshots and mods.
     /// </summary>
     public void DeleteVersion(string gameDirectory, string versionName)
     {
@@ -656,6 +674,26 @@ public sealed class MinecraftService
     {
         var fullPath = Path.GetFullPath(gameDirectory);
         return new MinecraftPath(fullPath);
+    }
+
+    /// <summary>
+    /// Builds a <see cref="MinecraftPath"/> whose base path (and therefore
+    /// <c>--gameDir</c>) is the version folder, while every downloaded
+    /// dependency stays in the shared installation.
+    /// </summary>
+    private static MinecraftPath CreateIsolatedPath(MinecraftPath shared, string versionName)
+    {
+        var root = Path.Combine(shared.Versions, versionName);
+        Directory.CreateDirectory(root);
+
+        return new MinecraftPath(root)
+        {
+            Versions = shared.Versions,
+            Library = shared.Library,
+            Resource = shared.Resource,
+            Assets = shared.Assets,
+            Runtime = shared.Runtime
+        };
     }
 
     private static bool IsInstalled(MinecraftPath path, string versionName)

@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -17,8 +18,11 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     private readonly SettingsService _settingsService;
     private readonly MinecraftService _minecraft;
     private readonly StoragePickerService _picker;
+    private readonly ModService _modService;
+    private readonly ModrinthService _modrinthService;
     private readonly Func<Task> _refreshVersionsAsync;
     private readonly Action _goBack;
+    private readonly List<LocalModInfo> _allMods = new();
 
     private GameVersion? _version;
     private GameVersionSettings _model = new();
@@ -32,6 +36,8 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         MinecraftService minecraft,
         StoragePickerService picker,
         ModLoaderService modLoaderService,
+        ModService modService,
+        ModrinthService modrinthService,
         Func<Task> refreshVersionsAsync,
         Action goBack)
     {
@@ -41,6 +47,8 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         _settingsService = settingsService;
         _minecraft = minecraft;
         _picker = picker;
+        _modService = modService;
+        _modrinthService = modrinthService;
         _refreshVersionsAsync = refreshVersionsAsync;
         _goBack = goBack;
         LoaderSelector = new ModLoaderSelectorViewModel(modLoaderService, minecraft, picker);
@@ -88,9 +96,34 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         ? string.Empty
         : _minecraft.GetVersionDirectory(_session.Settings.GameDirectory, _version.Name);
 
-    public string SavesDirectory => _minecraft.GetSavesDirectory(_session.Settings.GameDirectory);
+    public string SavesDirectory => _version is null
+        ? string.Empty
+        : _minecraft.GetSavesDirectory(_session.Settings.GameDirectory, _version.Name);
 
-    public string ScreenshotsDirectory => _minecraft.GetScreenshotsDirectory(_session.Settings.GameDirectory);
+    public string ScreenshotsDirectory => _version is null
+        ? string.Empty
+        : _minecraft.GetScreenshotsDirectory(_session.Settings.GameDirectory, _version.Name);
+
+    /// <summary>
+    /// Every version runs inside its own folder, so the working directory is
+    /// always <c>versions/&lt;name&gt;</c>.
+    /// </summary>
+    public string GameDirectory => _version is null
+        ? string.Empty
+        : _minecraft.GetGameDirectory(_session.Settings.GameDirectory, _version.Name);
+
+    public string ModsDirectory => _version is null
+        ? string.Empty
+        : _minecraft.GetModsDirectory(_session.Settings.GameDirectory, _version.Name);
+
+    public string ConfigDirectory => _version is null
+        ? string.Empty
+        : _minecraft.GetConfigDirectory(_session.Settings.GameDirectory, _version.Name);
+
+    public bool CanImportSharedData => _version is { IsInstalled: true };
+
+    public string DeleteWarningText =>
+        "删除此版本会移除整个版本文件夹，包括该版本隔离的存档、截图、模组与配置；共享的 libraries / assets / runtime 与其它版本不受影响。";
 
     public string DetectedJavaText
     {
@@ -109,6 +142,44 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         "Microsoft 账户（需已登录）",
         "离线账户"
     };
+
+    public ObservableCollection<ModItemViewModel> LocalMods { get; } = new();
+
+    public ObservableCollection<ModrinthProjectItemViewModel> ModrinthResults { get; } = new();
+
+    public bool HasLocalMods => LocalMods.Count > 0;
+
+    public bool HasNoLocalMods => !HasLocalMods;
+
+    /// <summary>
+    /// Modrinth mods can only be installed into Fabric / Forge / NeoForge
+    /// profiles; vanilla and OptiFine cannot load them.
+    /// </summary>
+    public bool CanUseModrinth => _version is { IsInstalled: true, IsModded: true }
+                                  && ModrinthService.SupportsLoader(_version.LoaderKind);
+
+    public bool CanSearchModrinth =>
+        CanUseModrinth && !IsModrinthSearching && !IsModrinthInstalling;
+
+    public string ModrinthSearchButtonText => IsModrinthSearching ? "搜索中..." : "搜索";
+
+    public string ModrinthCompatibilityText
+    {
+        get
+        {
+            if (_version is null)
+                return string.Empty;
+            if (!_version.IsInstalled)
+                return "请先安装该版本，再管理模组。";
+            if (_version.LoaderKind == ModLoaderKind.OptiFine)
+                return "OptiFine 版本不支持从 Modrinth 自动安装模组；请使用 Fabric / Forge / NeoForge，或手动把模组放入 mods 文件夹。";
+            if (!_version.IsModded)
+                return "原版版本无法加载模组。请先在「模组加载器」中添加 Fabric / Forge / NeoForge。";
+
+            return $"只显示兼容 Minecraft {_version.BaseVersionName} 与 " +
+                   $"{_version.LoaderKind.ToDisplayName()} 的模组；安装时会自动下载必需的前置模组。";
+        }
+    }
 
     [ObservableProperty]
     public partial string NewVersionName { get; set; } = string.Empty;
@@ -154,6 +225,28 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial string PreLaunchCommand { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string LocalModSearchText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool ShowDisabledMods { get; set; } = true;
+
+    [ObservableProperty]
+    public partial string LocalModStatusText { get; set; } = "尚未扫描模组文件夹。";
+
+    [ObservableProperty]
+    public partial string ModrinthSearchText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string ModrinthStatusText { get; set; } =
+        "搜索并安装兼容当前版本与加载器的模组，必需的前置模组会自动下载。";
+
+    [ObservableProperty]
+    public partial bool IsModrinthSearching { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsModrinthInstalling { get; set; }
 
     [ObservableProperty]
     public partial bool IsDeleteConfirmVisible { get; set; }
@@ -208,9 +301,18 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         IsRemoveLoaderConfirmVisible = false;
         SaveState = "修改会自动保存";
 
+        LocalModSearchText = string.Empty;
+        LocalModStatusText = "尚未扫描模组文件夹。";
+        ModrinthSearchText = string.Empty;
+        ModrinthResults.Clear();
+        ModrinthStatusText = "搜索并安装兼容当前版本与加载器的模组，必需的前置模组会自动下载。";
+
         _loading = false;
         OnPropertyChanged(nameof(IsOfflineLogin));
         OnPropertyChanged(nameof(IsMicrosoftLogin));
+        OnPropertyChanged(nameof(ModrinthCompatibilityText));
+        OnPropertyChanged(nameof(CanUseModrinth));
+        ReloadLocalMods();
     }
 
     public void Flush()
@@ -347,6 +449,227 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
     [RelayCommand]
     private void OpenScreenshotsFolder() => OpenFolder(ScreenshotsDirectory, create: true);
+
+    [RelayCommand]
+    private void OpenGameFolder() => OpenFolder(GameDirectory, create: true);
+
+    [RelayCommand]
+    private void OpenModsFolder() => OpenFolder(ModsDirectory, create: true);
+
+    [RelayCommand]
+    private void OpenConfigFolder() => OpenFolder(ConfigDirectory, create: true);
+
+    [RelayCommand]
+    private void RefreshMods() => ReloadLocalMods();
+
+    [RelayCommand]
+    private async Task SearchModrinthAsync()
+    {
+        if (_version is null || !CanUseModrinth || IsModrinthSearching)
+            return;
+
+        IsModrinthSearching = true;
+        ModrinthStatusText = "正在从 Modrinth 搜索兼容模组...";
+        var versionName = _version.Name;
+        try
+        {
+            var result = await _modrinthService.SearchAsync(
+                _version.BaseVersionName,
+                _version.LoaderKind,
+                ModrinthSearchText);
+
+            if (_version is null
+                || !string.Equals(_version.Name, versionName, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            ModrinthResults.Clear();
+            foreach (var hit in result.Hits)
+                ModrinthResults.Add(new ModrinthProjectItemViewModel(hit, InstallModrinthProjectAsync));
+
+            ModrinthStatusText = result.Hits.Count == 0
+                ? "没有找到兼容的模组。请检查网络或搜索关键词，并确认该版本使用 Fabric / Forge / NeoForge。"
+                : $"共 {result.TotalHits} 个兼容结果，当前显示 {result.Hits.Count} 个。";
+            Session.SetStatus(ModrinthStatusText);
+        }
+        catch (Exception ex)
+        {
+            ModrinthStatusText = "搜索 Modrinth 失败。";
+            Session.SetError($"搜索 Modrinth 失败：{ex.Message}");
+        }
+        finally
+        {
+            IsModrinthSearching = false;
+        }
+    }
+
+    private async Task InstallModrinthProjectAsync(ModrinthProjectItemViewModel item)
+    {
+        if (_version is null || item.IsInstalling || IsModrinthInstalling || Session.IsBusy)
+            return;
+
+        item.IsInstalling = true;
+        IsModrinthInstalling = true;
+        Session.BeginBusy($"正在从 Modrinth 安装 {item.Title}...");
+        try
+        {
+            var progress = new Progress<string>(message => Session.SetStatus(message));
+            var report = await _modrinthService.InstallProjectAsync(
+                item.Project.ProjectId,
+                ModsDirectory,
+                _version.BaseVersionName,
+                _version.LoaderKind,
+                progress);
+
+            ReloadLocalMods();
+
+            var message = report.InstalledFiles == 0
+                ? $"未下载新文件（{report.SkippedFiles} 个文件已存在）。"
+                : $"已安装 {report.InstalledFiles} 个模组文件" +
+                  (report.SkippedFiles > 0 ? $"，跳过 {report.SkippedFiles} 个已存在的文件" : string.Empty) + "。";
+            if (report.HasWarnings)
+                message += $" 有 {report.Warnings.Count} 个必需前置未自动安装：{report.Warnings[0]}";
+
+            Session.SetStatus(message);
+            ModrinthStatusText = message;
+        }
+        catch (Exception ex)
+        {
+            Session.SetError($"安装 Modrinth 模组失败：{ex.Message}");
+        }
+        finally
+        {
+            Session.EndBusy();
+            IsModrinthInstalling = false;
+            item.IsInstalling = false;
+        }
+    }
+
+    private async Task ToggleModAsync(ModItemViewModel item)
+    {
+        if (Session.IsBusy)
+            return;
+
+        try
+        {
+            var updated = await Task.Run(() => _modService.SetEnabled(item.Info, !item.Info.IsEnabled));
+            ReloadLocalMods();
+            Session.SetStatus(updated.IsEnabled
+                ? $"已启用模组 {updated.DisplayName}，下次启动游戏时生效"
+                : $"已禁用模组 {updated.DisplayName}（文件已重命名为 .jar.disabled）");
+        }
+        catch (Exception ex)
+        {
+            Session.SetError($"切换模组状态失败：{ex.Message}");
+        }
+    }
+
+    private async Task DeleteModAsync(ModItemViewModel item)
+    {
+        if (Session.IsBusy)
+            return;
+
+        try
+        {
+            var name = item.DisplayName;
+            await Task.Run(() => _modService.Delete(item.Info));
+            ReloadLocalMods();
+            Session.SetStatus($"已删除模组 {name}");
+        }
+        catch (Exception ex)
+        {
+            Session.SetError($"删除模组失败：{ex.Message}");
+        }
+    }
+
+    private void ReloadLocalMods()
+    {
+        _allMods.Clear();
+
+        if (_version is { IsInstalled: true })
+        {
+            try
+            {
+                _allMods.AddRange(_modService.Scan(ModsDirectory));
+            }
+            catch (Exception ex)
+            {
+                LocalModStatusText = $"读取 mods 文件夹失败：{ex.Message}";
+                RebuildLocalMods();
+                return;
+            }
+        }
+
+        RebuildLocalMods();
+    }
+
+    private void RebuildLocalMods()
+    {
+        LocalMods.Clear();
+        var filter = LocalModSearchText?.Trim() ?? string.Empty;
+
+        foreach (var info in _allMods)
+        {
+            if (!ShowDisabledMods && !info.IsEnabled)
+                continue;
+
+            if (filter.Length > 0
+                && !info.DisplayName.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                && !info.FileName.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            LocalMods.Add(new ModItemViewModel(info, ToggleModAsync, DeleteModAsync));
+        }
+
+        var enabled = _allMods.Count(info => info.IsEnabled);
+        LocalModStatusText = _version is not { IsInstalled: true }
+            ? "安装该版本后即可管理模组。"
+            : _allMods.Count == 0
+                ? "mods 文件夹中还没有模组。可以手动放入 .jar，或从下面 Modrinth 搜索下载。"
+                : $"已启用 {enabled} 个，已禁用 {_allMods.Count - enabled} 个" +
+                  (LocalMods.Count != _allMods.Count ? $"，当前显示 {LocalMods.Count} 个" : string.Empty);
+
+        OnPropertyChanged(nameof(HasLocalMods));
+        OnPropertyChanged(nameof(HasNoLocalMods));
+    }
+
+    [RelayCommand]
+    private async Task ImportSharedDataAsync()
+    {
+        if (_version is null || Session.IsBusy)
+            return;
+
+        if (!_version.IsInstalled)
+        {
+            Session.SetError("请先安装该版本，再导入共享数据。");
+            return;
+        }
+
+        var gameDirectory = _session.Settings.GameDirectory;
+        var versionName = _version.Name;
+
+        Session.BeginBusy("正在从共享目录导入存档与配置...");
+        try
+        {
+            var result = await Task.Run(
+                () => VersionIsolationService.ImportSharedData(gameDirectory, versionName));
+
+            Session.SetStatus(result.CopiedFiles == 0
+                ? "共享目录中没有可导入的数据，或目标文件已全部存在"
+                : $"已从共享目录复制 {result.CopiedFiles} 个文件到本版本，跳过 {result.SkippedFiles} 个已存在的文件");
+        }
+        catch (Exception ex)
+        {
+            Session.SetError($"导入共享数据失败：{ex.Message}");
+        }
+        finally
+        {
+            Session.EndBusy();
+        }
+    }
 
     [RelayCommand]
     private async Task RepairAsync()
@@ -504,7 +827,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
             _session.RemoveVersion(version);
             _settingsService.SaveSilently(_session.Settings);
-            Session.SetStatus($"已删除版本 {version.Name}（存档与截图未删除）");
+            Session.SetStatus($"已删除版本 {version.Name}（该版本隔离的存档、截图与模组已一并删除）");
 
             _saveDebounce?.Cancel();
             _version = null;
@@ -650,6 +973,11 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(VersionDirectory));
         OnPropertyChanged(nameof(SavesDirectory));
         OnPropertyChanged(nameof(ScreenshotsDirectory));
+        OnPropertyChanged(nameof(GameDirectory));
+        OnPropertyChanged(nameof(ModsDirectory));
+        OnPropertyChanged(nameof(ConfigDirectory));
+        OnPropertyChanged(nameof(CanImportSharedData));
+        OnPropertyChanged(nameof(DeleteWarningText));
         OnPropertyChanged(nameof(DetectedJavaText));
         OnPropertyChanged(nameof(IsOfflineLogin));
         OnPropertyChanged(nameof(IsMicrosoftLogin));
@@ -658,6 +986,9 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanManageModLoader));
         OnPropertyChanged(nameof(CurrentLoaderLabel));
         OnPropertyChanged(nameof(LoaderBaseVersionLabel));
+        OnPropertyChanged(nameof(CanUseModrinth));
+        OnPropertyChanged(nameof(CanSearchModrinth));
+        OnPropertyChanged(nameof(ModrinthCompatibilityText));
     }
 
     partial void OnJavaPathChanged(string value) => QueueSave();
@@ -692,4 +1023,17 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     partial void OnGameArgumentsChanged(string value) => QueueSave();
 
     partial void OnPreLaunchCommandChanged(string value) => QueueSave();
+
+    partial void OnLocalModSearchTextChanged(string value) => RebuildLocalMods();
+
+    partial void OnShowDisabledModsChanged(bool value) => RebuildLocalMods();
+
+    partial void OnIsModrinthSearchingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanSearchModrinth));
+        OnPropertyChanged(nameof(ModrinthSearchButtonText));
+    }
+
+    partial void OnIsModrinthInstallingChanged(bool value)
+        => OnPropertyChanged(nameof(CanSearchModrinth));
 }

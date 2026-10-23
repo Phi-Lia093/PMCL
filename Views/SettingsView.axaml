@@ -14,7 +14,7 @@
                 <StackPanel Spacing="16">
                     <StackPanel Spacing="3">
                         <TextBlock Text="游戏目录" Classes="h2" FontSize="16" />
-                        <TextBlock Text="所有版本、存档、截图与资源文件都保存在这个 .minecraft 目录中。"
+                        <TextBlock Text="版本元数据与共享的 libraries / assets / runtime 保存在这个 .minecraft 目录中；每个版本的存档、截图、模组与配置会自动隔离在 versions\&lt;版本名&gt; 内，互不影响。"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                     </StackPanel>
