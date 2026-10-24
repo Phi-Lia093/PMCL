@@ -522,23 +522,38 @@
 
                         <StackPanel Spacing="6">
                             <TextBlock Text="{loc:Tr VS.JavaPath}" Classes="label" />
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                <TextBox Grid.Column="0"
-                                         Text="{Binding JavaPath}"
-                                         PlaceholderText="{loc:Tr VS.JavaPlaceholder}" />
-                                <Button Grid.Column="1"
+                            <ComboBox ItemsSource="{Binding JavaRuntimeOptions}"
+                                      SelectedItem="{Binding SelectedJavaRuntime, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:JavaRuntimeOption">
+                                        <TextBlock Text="{Binding DisplayName}"
+                                                   ToolTip.Tip="{Binding Path}"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                <Button Grid.Column="0"
                                         Classes="secondary"
+                                        HorizontalAlignment="Stretch"
                                         Content="{loc:Tr Common.Browse}"
                                         Command="{Binding BrowseJavaCommand}" />
+                                <Button Grid.Column="1"
+                                        Classes="secondary"
+                                        HorizontalAlignment="Stretch"
+                                        Content="{loc:Tr Java.Scan}"
+                                        IsEnabled="{Binding !IsScanningJava}"
+                                        Command="{Binding ScanJavaCommand}" />
                             </Grid>
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <Button Classes="ghost"
                                         Padding="0,4"
                                         Content="{loc:Tr Common.ClearPath}"
                                         Command="{Binding ClearJavaPathCommand}" />
-                                <TextBlock Text="{Binding DetectedJavaText}"
+                                <TextBlock Text="{Binding JavaScanStatus}"
                                            Classes="muted"
-                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="Wrap"
                                            VerticalAlignment="Center" />
                             </StackPanel>
                         </StackPanel>

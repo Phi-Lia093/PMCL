@@ -560,23 +560,6 @@ public sealed class MinecraftService
             throw new InvalidOperationException(L.Tr("MC.NameInvalidChars"));
     }
 
-    /// <summary>
-    /// Returns the auto-detected Java executable, or null when no Java installation was found.
-    /// </summary>
-    public string? TryGetDefaultJavaPath(string gameDirectory)
-    {
-        try
-        {
-            var path = CreatePath(gameDirectory);
-            var javaPath = GetLauncher(path).GetDefaultJavaPath();
-            return string.IsNullOrWhiteSpace(javaPath) ? null : javaPath;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
     public IReadOnlyList<InstalledLoaderProfile> GetInstalledLoaderProfiles(
         string gameDirectory,
         string baseVersionName)

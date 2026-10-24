@@ -19,7 +19,8 @@ public sealed partial class MainViewModel : ViewModelBase
         SettingsService settingsService,
         MinecraftService minecraft,
         StoragePickerService picker,
-        AppPaths paths)
+        AppPaths paths,
+        JavaRuntimeService javaRuntimes)
     {
         Session = session;
         _minecraft = minecraft;
@@ -33,6 +34,7 @@ public sealed partial class MainViewModel : ViewModelBase
             settingsService,
             minecraft,
             picker,
+            javaRuntimes,
             modLoaderService,
             new ModService(),
             new ModrinthService(),
@@ -50,6 +52,7 @@ public sealed partial class MainViewModel : ViewModelBase
             modLoaderService,
             minecraft,
             picker,
+            javaRuntimes,
             RefreshVersionsAsync);
         Settings = new SettingsViewModel(session, settingsService, picker, paths, RefreshVersionsAsync);
 

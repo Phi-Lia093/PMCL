@@ -34,6 +34,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     private readonly SettingsService _settingsService;
     private readonly MinecraftService _minecraft;
     private readonly StoragePickerService _picker;
+    private readonly JavaRuntimeService _javaRuntimes;
     private readonly ModService _modService;
     private readonly ModrinthService _modrinthService;
     private readonly Func<Task> _refreshVersionsAsync;
@@ -44,6 +45,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     private GameVersionSettings _model = new();
     private CancellationTokenSource? _saveDebounce;
     private bool _loading;
+    private bool _syncingJavaSelection;
     private VersionSettingsSection _selectedSection = VersionSettingsSection.Settings;
 
     public VersionSettingsViewModel(
@@ -52,6 +54,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         SettingsService settingsService,
         MinecraftService minecraft,
         StoragePickerService picker,
+        JavaRuntimeService javaRuntimes,
         ModLoaderService modLoaderService,
         ModService modService,
         ModrinthService modrinthService,
@@ -64,11 +67,16 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         _settingsService = settingsService;
         _minecraft = minecraft;
         _picker = picker;
+        _javaRuntimes = javaRuntimes;
         _modService = modService;
         _modrinthService = modrinthService;
         _refreshVersionsAsync = refreshVersionsAsync;
         _goBack = goBack;
-        LoaderSelector = new ModLoaderSelectorViewModel(modLoaderService, minecraft, picker);
+        LoaderSelector = new ModLoaderSelectorViewModel(
+            modLoaderService,
+            minecraft,
+            picker,
+            javaRuntimes);
     }
 
     public LauncherSession Session { get; }
@@ -149,16 +157,16 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
     public string DeleteWarningText => L.Tr("VS.DeleteWarning");
 
-    public string DetectedJavaText
-    {
-        get
-        {
-            var detected = _minecraft.TryGetDefaultJavaPath(_session.Settings.GameDirectory);
-            return string.IsNullOrWhiteSpace(detected)
-                ? L.Tr("VS.JavaNotDetected")
-                : L.Format("Loader.AutoDetectedJava", detected);
-        }
-    }
+    public ObservableCollection<JavaRuntimeOption> JavaRuntimeOptions { get; } = new();
+
+    [ObservableProperty]
+    public partial JavaRuntimeOption? SelectedJavaRuntime { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsScanningJava { get; set; }
+
+    [ObservableProperty]
+    public partial string JavaScanStatus { get; set; } = L.Tr("Java.NotScanned");
 
     public IReadOnlyList<string> LoginModes { get; } = new[]
     {
@@ -366,6 +374,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         _model = _session.Settings.GetVersionSettings(version.Name);
         NewVersionName = version.Name;
         JavaPath = _model.JavaPath;
+        RefreshJavaRuntimeOptions(JavaPath);
         MinimumRamMb = _model.MinimumRamMb;
         MaximumRamMb = _model.MaximumRamMb;
         WindowWidth = _model.WindowWidth;
@@ -441,6 +450,34 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         var file = await _picker.PickJavaExecutableAsync(L.Tr("VS.PickJava"));
         if (!string.IsNullOrWhiteSpace(file))
             JavaPath = file;
+    }
+
+    [RelayCommand]
+    private async Task ScanJavaAsync()
+    {
+        if (IsScanningJava)
+            return;
+
+        IsScanningJava = true;
+        JavaScanStatus = L.Tr("Java.Scanning");
+
+        try
+        {
+            var result = await _javaRuntimes
+                .ScanAsync(_session.Settings.GameDirectory)
+                .ConfigureAwait(true);
+
+            RefreshJavaRuntimeOptions(JavaPath);
+            JavaScanStatus = L.Format("Java.ScanComplete", result.Runtimes.Count);
+        }
+        catch (Exception ex)
+        {
+            JavaScanStatus = L.Format("Java.ScanFailed", ex.Message);
+        }
+        finally
+        {
+            IsScanningJava = false;
+        }
     }
 
     [RelayCommand]
@@ -1082,6 +1119,71 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         return new string(characters);
     }
 
+    private void RefreshJavaRuntimeOptions(string? path)
+    {
+        var desiredPath = path?.Trim() ?? string.Empty;
+        var options = new List<JavaRuntimeOption>
+        {
+            new(string.Empty, L.Tr("Java.AutoDownload"))
+        };
+
+        foreach (var runtime in _javaRuntimes.CachedRuntimes)
+        {
+            if (options.Any(option => string.Equals(
+                    option.Path,
+                    runtime.Path,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            options.Add(new JavaRuntimeOption(runtime.Path, runtime.DisplayName));
+        }
+
+        if (desiredPath.Length > 0
+            && options.All(option => !string.Equals(
+                option.Path,
+                desiredPath,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            options.Add(new JavaRuntimeOption(
+                desiredPath,
+                L.Format("Java.CustomRuntime", desiredPath)));
+        }
+
+        _syncingJavaSelection = true;
+        try
+        {
+            JavaRuntimeOptions.Clear();
+            foreach (var option in options)
+                JavaRuntimeOptions.Add(option);
+
+            SelectedJavaRuntime = JavaRuntimeOptions.FirstOrDefault(option =>
+                                    string.Equals(
+                                        option.Path,
+                                        desiredPath,
+                                        StringComparison.OrdinalIgnoreCase))
+                                ?? JavaRuntimeOptions[0];
+        }
+        finally
+        {
+            _syncingJavaSelection = false;
+        }
+
+        RefreshJavaScanStatus();
+    }
+
+    private void RefreshJavaScanStatus()
+    {
+        var lastScannedAt = _javaRuntimes.LastScannedAt;
+        JavaScanStatus = lastScannedAt is null
+            ? L.Tr("Java.NotScanned")
+            : L.Format(
+                "Java.LastScan",
+                lastScannedAt.Value.LocalDateTime.ToString("g"),
+                _javaRuntimes.CachedRuntimes.Count);
+    }
+
     private void NotifyVersionDerived()
     {
         OnPropertyChanged(nameof(HasVersion));
@@ -1095,7 +1197,6 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(ConfigDirectory));
         OnPropertyChanged(nameof(CanImportSharedData));
         OnPropertyChanged(nameof(DeleteWarningText));
-        OnPropertyChanged(nameof(DetectedJavaText));
         OnPropertyChanged(nameof(IsOfflineLogin));
         OnPropertyChanged(nameof(IsMicrosoftLogin));
         OnPropertyChanged(nameof(HasModLoader));
@@ -1109,7 +1210,33 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(ModrinthCompatibilityText));
     }
 
-    partial void OnJavaPathChanged(string value) => QueueSave();
+    partial void OnJavaPathChanged(string value)
+    {
+        QueueSave();
+
+        if (!_loading && !_syncingJavaSelection)
+            RefreshJavaRuntimeOptions(value);
+    }
+
+    partial void OnSelectedJavaRuntimeChanged(JavaRuntimeOption? value)
+    {
+        if (_loading || _syncingJavaSelection || value is null)
+            return;
+
+        var path = value.IsAuto ? string.Empty : value.Path;
+        if (string.Equals(JavaPath, path, StringComparison.Ordinal))
+            return;
+
+        _syncingJavaSelection = true;
+        try
+        {
+            JavaPath = path;
+        }
+        finally
+        {
+            _syncingJavaSelection = false;
+        }
+    }
 
     partial void OnMinimumRamMbChanged(int value) => QueueSave();
 

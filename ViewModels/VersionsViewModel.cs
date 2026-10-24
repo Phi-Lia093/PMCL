@@ -25,12 +25,17 @@ public sealed partial class VersionsViewModel : ViewModelBase
         ModLoaderService modLoaderService,
         MinecraftService minecraft,
         StoragePickerService picker,
+        JavaRuntimeService javaRuntimes,
         Func<Task> refreshVersionsAsync)
     {
         Session = session;
         _coordinator = coordinator;
         _refreshVersionsAsync = refreshVersionsAsync;
-        LoaderSelector = new ModLoaderSelectorViewModel(modLoaderService, minecraft, picker);
+        LoaderSelector = new ModLoaderSelectorViewModel(
+            modLoaderService,
+            minecraft,
+            picker,
+            javaRuntimes);
 
         Session.Versions.CollectionChanged += OnVersionsChanged;
         RebuildItems();

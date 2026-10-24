@@ -35,10 +35,18 @@ public partial class App : Application
             var session = new LauncherSession(settings);
             var authentication = new AuthenticationService(paths);
             var minecraft = new MinecraftService(() => settings.DownloadSource);
+            var javaRuntimes = new JavaRuntimeService(paths);
 
             MainWindow? mainWindow = null;
             var picker = new StoragePickerService(() => mainWindow);
-            var viewModel = new MainViewModel(session, authentication, settingsService, minecraft, picker, paths);
+            var viewModel = new MainViewModel(
+                session,
+                authentication,
+                settingsService,
+                minecraft,
+                picker,
+                paths,
+                javaRuntimes);
 
             var window = new MainWindow
             {

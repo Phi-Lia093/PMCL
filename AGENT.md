@@ -56,6 +56,7 @@ D:\PMCL
 │  ├─ DownloadSourceKind.cs      # 官方源 / BMCLAPI 镜像
 │  ├─ GameVersion.cs             # 版本（Name/Type/ReleaseTime/IsInstalled/加载器元数据）
 │  ├─ GameVersionSettings.cs     # 每个已安装版本的启动设置
+│  ├─ JavaRuntimeInfo.cs         # Java 扫描结果（路径、版本、架构、来源、显示名）
 │  ├─ LauncherSettings.cs        # 全局设置 + versionSettings 字典
 │  ├─ MicrosoftDeviceLoginChallenge.cs # 设备码、授权页与轮询有效期
 │  ├─ ModLoaderKind.cs           # 原版 / Fabric / Forge / NeoForge / OptiFine
@@ -72,6 +73,7 @@ D:\PMCL
 │  ├─ DownloadSourceRouter.cs    # HTTP 层官方/BMCLAPI 路由与官方回退
 │  ├─ DownloadSpeedTracker.cs    # 下载速度平滑与字节格式化
 │  ├─ GameLaunchCoordinator.cs   # 安装、补全、加载器互斥安装/移除、按版本启动、脚本导出
+│  ├─ JavaRuntimeService.cs      # Java 运行库扫描、按 runtime home 去重、java-runtimes.json 缓存
 │  ├─ MinecraftService.cs        # CmlLib 封装 + 加载器安装 + 版本文件夹重命名/删除
 │  ├─ ModLoaderDetector.cs       # pmcl-loader.json / 版本名加载器检测
 │  ├─ ModLoaderService.cs        # Fabric/Forge/NeoForge/OptiFine 目录与安装
@@ -92,6 +94,7 @@ D:\PMCL
 │  ├─ AccountViewModel.cs        # 多账户列表、设备码登录、切换 / 删除 / 自动恢复
 │  ├─ VersionSettingsViewModel.cs# 版本设置页（启动参数、模组管理、Modrinth）
 │  ├─ SettingsViewModel.cs       # 全局设置页（游戏目录、语言切换）
+│  ├─ JavaRuntimeOption.cs       # Java 下拉选项（空路径 = 自动 / CmlLib 下载）
 │  └─ VersionItemViewModel.cs    # 列表项（筛选用）
 └─ Views/
    ├─ MainWindow.axaml(.cs)      # 侧边导航 + 页头 + 内容宿主 + 全局遮罩
@@ -113,6 +116,9 @@ D:\PMCL
 - 账户：`%APPDATA%\PMCL\accounts.json`
   - `accounts[]` 保存账户类型、用户名、UUID、Xbox Gamertag / XUID、刷新令牌、Minecraft 令牌与过期时间、最近使用时间
   - 旧 CmlLib 账户文件自动迁移并保留为 `accounts.legacy.json`；损坏文件会备份为 `accounts.corrupt-*.json`
+- Java 运行库缓存：`%APPDATA%\PMCL\java-runtimes.json`
+  - 只在用户点击「扫描 Java」时扫描系统目录 / 注册表 / 共享 `runtime`，按 runtime home 去重并优先 `javaw.exe`
+  - 启动时只读取缓存，不会遍历磁盘；下拉中的「自动」保持空路径，由 CmlLib 解析或下载所需 Mojang 运行时
 - 加载器元数据：每个加载器版本目录内的 `pmcl-loader.json`（`loader`、`loaderVersion`、`minecraftVersion`）
   - 新安装会写入；旧 Forge / Fabric / OptiFine / NeoForge 文件夹会通过版本名与 json `inheritsFrom` 回退识别
   - 重命名原版版本时会同步更新子加载器的 `minecraftVersion`
@@ -127,7 +133,7 @@ D:\PMCL
 
 ## 6. 架构约定
 
-1. **组合根**：`App.OnFrameworkInitializationCompleted` 手工构造 `AppPaths → SettingsService → LauncherSession → AuthenticationService → MinecraftService → StoragePickerService → MainViewModel`，不使用 DI 容器；`MainViewModel` 再创建 `ModLoaderService`、`ModService`（本地模组文件）与 `ModrinthService`（HTTP API）并注入版本设置页。
+1. **组合根**：`App.OnFrameworkInitializationCompleted` 手工构造 `AppPaths → SettingsService → LauncherSession → AuthenticationService → MinecraftService → JavaRuntimeService → StoragePickerService → MainViewModel`，不使用 DI 容器；`MainViewModel` 再创建 `ModLoaderService`、`ModService`（本地模组文件）与 `ModrinthService`（HTTP API）并注入版本设置页。
 2. **单一共享状态**：所有页面绑定同一个 `LauncherSession`；全局忙碌/进度/错误由 `BeginBusy` / `EndBusy` / `SetStatus` / `SetError` 驱动。
 3. **页面导航**：`MainViewModel.CurrentPage` 是 `ViewModelBase`，通过 `ContentControl` + `ViewLocator` 渲染。
    - `PMCL.ViewModels.HomeViewModel` → `PMCL.Views.HomeView`（依赖 `ViewModel` → `View` 的命名替换，新增页面必须遵守）。
