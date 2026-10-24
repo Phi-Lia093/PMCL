@@ -27,6 +27,7 @@
   "Nav.Versions": "版本库",
   "Nav.Accounts": "账户",
   "Nav.Settings": "设置",
+  "Nav.About": "关于",
 
   "Game.Running": "Minecraft 运行中",
   "Game.Close": "关闭",
@@ -36,6 +37,28 @@
   "Game.CloseGame": "关闭游戏",
 
   "App.Tagline": "多账户 · 独立配置",
+
+  "About.Eyebrow": "关于项目",
+  "About.Subtitle": "Philia093's MineCraft Launcher",
+  "About.Description": "一个专注于稳定下载、多账户与独立版本配置的 Minecraft Java 版启动器。",
+  "About.LicenseBadge": "GPL-3.0",
+  "About.Contact": "联系与链接",
+  "About.ContactHint": "访问项目主页、反馈问题或直接联系作者。",
+  "About.GitHub": "GitHub",
+  "About.Email": "邮箱",
+  "About.Repository": "项目仓库",
+  "About.Open": "打开",
+  "About.SendEmail": "写邮件",
+  "About.License": "开源许可",
+  "About.LicenseName": "GNU General Public License v3.0",
+  "About.LicenseDescription": "PMCL 以 GNU General Public License v3.0 发布。你可以自由使用、修改和分发本项目；分发修改版本时须继续采用 GPL-3.0，并提供对应源代码。",
+  "About.CopyrightLabel": "版权",
+  "About.RightsReserved": "保留所有权利。",
+  "About.ViewLicense": "查看完整许可证",
+  "About.SourceCode": "源代码",
+  "About.BuiltWith": "技术栈",
+  "About.Thanks": "感谢 Avalonia、CmlLib 与所有开源贡献者。",
+  "About.EmailSubject": "PMCL 反馈",
   "Busy.Title": "正在处理",
   "Busy.Hint": "下载完成前请不要关闭启动器。",
 
@@ -288,6 +311,7 @@
   "Page.Subtitle.Account": "登录 Microsoft 正版账户或添加离线账户。",
   "Page.Subtitle.Settings": "调整游戏目录、下载源与窗口行为。",
   "Page.Subtitle.VersionSettings": "按版本配置 Java、内存与模组。",
+  "Page.Subtitle.About": "项目信息、联系方式与开源许可。",
 
   "Status.Ready": "就绪",
   "Status.DownloadSourcePrefix": "下载源：",
@@ -570,5 +594,7 @@
 
   "Storage.JavaExecutable": "Java 可执行文件",
   "Browser.InvalidLoginUrl": "登录链接无效。",
+  "Browser.InvalidUrl": "链接无效。",
+  "Browser.OpenFailed": "无法打开链接：{0}",
   "App.TrayInitFailed": "托盘图标初始化失败：{0}"
 }

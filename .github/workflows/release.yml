@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (for example v0.1.0)"
+        required: true
+        default: "v0.1.0"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build single-file Windows releases
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish win-x64 and win-x86 packages
+        shell: pwsh
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = "${{ github.ref_name }}"
+          }
+          ./scripts/publish-release.ps1 -Version $version
+
+      - name: Upload release packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: PMCL-release
+          path: artifacts/release/**
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release packages
+        uses: actions/download-artifact@v4
+        with:
+          name: PMCL-release
+          path: release-artifacts
+
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mapfile -d '' files < <(find release-artifacts -type f \( -name '*.zip' -o -name '*.sha256' \) -print0)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No release packages were downloaded." >&2
+            exit 1
+          fi
+
+          cat > release-notes.md <<EOF
+          PMCL $GITHUB_REF_NAME
+
+          Windows 单文件、自包含发布，无需预先安装 .NET：
+          - \`PMCL-$GITHUB_REF_NAME-win-x64.zip\`（64 位 Windows）
+          - \`PMCL-$GITHUB_REF_NAME-win-x86.zip\`（32 位 Windows）
+
+          解压后运行 \`PMCL.exe\`。压缩包内含 LICENSE（GPL-3.0）与 NOTICE。
+          每个压缩包旁提供对应的 SHA256 校验文件。
+          EOF
+
+          gh release create "$GITHUB_REF_NAME" "${files[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "PMCL $GITHUB_REF_NAME" \
+            --notes-file release-notes.md

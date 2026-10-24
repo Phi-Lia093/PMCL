@@ -27,6 +27,7 @@
   "Nav.Versions": "Versions",
   "Nav.Accounts": "Accounts",
   "Nav.Settings": "Settings",
+  "Nav.About": "About",
 
   "Game.Running": "Minecraft is running",
   "Game.Close": "Close",
@@ -36,6 +37,28 @@
   "Game.CloseGame": "Close game",
 
   "App.Tagline": "Multiple accounts · isolated profiles",
+
+  "About.Eyebrow": "ABOUT THE PROJECT",
+  "About.Subtitle": "Philia093's MineCraft Launcher",
+  "About.Description": "A Minecraft Java Edition launcher focused on reliable downloads, multiple accounts and isolated per-version profiles.",
+  "About.LicenseBadge": "GPL-3.0",
+  "About.Contact": "Links & contact",
+  "About.ContactHint": "Visit the project, report an issue or contact the author directly.",
+  "About.GitHub": "GitHub",
+  "About.Email": "Email",
+  "About.Repository": "Project repository",
+  "About.Open": "Open",
+  "About.SendEmail": "Send email",
+  "About.License": "Open-source license",
+  "About.LicenseName": "GNU General Public License v3.0",
+  "About.LicenseDescription": "PMCL is released under the GNU General Public License v3.0. You may use, modify and redistribute this project; redistributed modified versions must remain under GPL-3.0 and include the corresponding source code.",
+  "About.CopyrightLabel": "Copyright",
+  "About.RightsReserved": "All rights reserved.",
+  "About.ViewLicense": "View full license",
+  "About.SourceCode": "Source code",
+  "About.BuiltWith": "Built with",
+  "About.Thanks": "Thanks to Avalonia, CmlLib and all open-source contributors.",
+  "About.EmailSubject": "PMCL feedback",
   "Busy.Title": "Working",
   "Busy.Hint": "Keep the launcher open until the download finishes.",
 
@@ -375,6 +398,7 @@
   "Page.Subtitle.Account": "Sign in with a Microsoft account or add an offline account.",
   "Page.Subtitle.Settings": "Adjust the game directory, download source and window behavior.",
   "Page.Subtitle.VersionSettings": "Configure Java, memory and mods per version.",
+  "Page.Subtitle.About": "Project information, contact details and open-source license.",
 
   "Status.Ready": "Ready",
   "Status.DownloadSourcePrefix": "Source: ",
@@ -571,5 +595,7 @@
 
   "Storage.JavaExecutable": "Java executable",
   "Browser.InvalidLoginUrl": "The sign-in link is invalid.",
+  "Browser.InvalidUrl": "The link is invalid.",
+  "Browser.OpenFailed": "Unable to open the link: {0}",
   "App.TrayInitFailed": "Tray icon initialization failed: {0}"
 }

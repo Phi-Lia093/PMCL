@@ -55,6 +55,7 @@ public sealed partial class MainViewModel : ViewModelBase
             javaRuntimes,
             RefreshVersionsAsync);
         Settings = new SettingsViewModel(session, settingsService, picker, paths, RefreshVersionsAsync);
+        About = new AboutViewModel(session);
 
         CurrentPage = Home;
     }
@@ -68,6 +69,8 @@ public sealed partial class MainViewModel : ViewModelBase
     public AccountViewModel Account { get; }
 
     public SettingsViewModel Settings { get; }
+
+    public AboutViewModel About { get; }
 
     public VersionSettingsViewModel VersionSettings { get; }
 
@@ -83,6 +86,8 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public bool IsSettingsSelected => ReferenceEquals(CurrentPage, Settings);
 
+    public bool IsAboutSelected => ReferenceEquals(CurrentPage, About);
+
     public string PageTitle => CurrentPage switch
     {
         HomeViewModel => L.Tr("Nav.Home"),
@@ -90,6 +95,7 @@ public sealed partial class MainViewModel : ViewModelBase
         AccountViewModel => L.Tr("Nav.Account"),
         SettingsViewModel => L.Tr("Nav.SettingsPage"),
         VersionSettingsViewModel => L.Tr("Nav.VersionSettings"),
+        AboutViewModel => L.Tr("Nav.About"),
         _ => "PMCL"
     };
 
@@ -100,10 +106,9 @@ public sealed partial class MainViewModel : ViewModelBase
         AccountViewModel => L.Tr("Page.Subtitle.Account"),
         SettingsViewModel => L.Tr("Page.Subtitle.Settings"),
         VersionSettingsViewModel => L.Tr("Page.Subtitle.VersionSettings"),
+        AboutViewModel => L.Tr("Page.Subtitle.About"),
         _ => "Philia093's MineCraft Launcher"
     };
-
-    public string AppVersionText => "PMCL 0.1.0 · Avalonia + CmlLib";
 
     public async Task InitializeAsync()
     {
@@ -194,6 +199,15 @@ public sealed partial class MainViewModel : ViewModelBase
         CurrentPage = Settings;
     }
 
+    [RelayCommand]
+    private void NavigateAbout()
+    {
+        VersionSettings.Flush();
+        Versions.CloseLoaderDialog();
+        VersionSettings.CloseLoaderDialog();
+        CurrentPage = About;
+    }
+
     private async Task RestoreAccountAsync()
     {
         try
@@ -212,6 +226,7 @@ public sealed partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsVersionsSelected));
         OnPropertyChanged(nameof(IsAccountSelected));
         OnPropertyChanged(nameof(IsSettingsSelected));
+        OnPropertyChanged(nameof(IsAboutSelected));
         OnPropertyChanged(nameof(PageTitle));
         OnPropertyChanged(nameof(PageSubtitle));
     }

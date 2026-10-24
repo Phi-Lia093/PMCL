@@ -1,0 +1,213 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:loc="using:PMCL.Localization"
+             xmlns:vm="using:PMCL.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="700"
+             x:Class="PMCL.Views.AboutView"
+             x:DataType="vm:AboutViewModel">
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="16" Margin="0,0,6,16">
+
+            <Border CornerRadius="18" Padding="30" ClipToBounds="True">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#2C1F63" Offset="0" />
+                        <GradientStop Color="#131926" Offset="0.64" />
+                        <GradientStop Color="#131926" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="24">
+                    <Border Width="112" Height="112"
+                            CornerRadius="26"
+                            Background="{StaticResource FieldBrush}"
+                            BorderBrush="#3C315F"
+                            BorderThickness="1"
+                            ClipToBounds="True"
+                            VerticalAlignment="Center">
+                        <Image Source="/Assets/logo.ico"
+                               Stretch="UniformToFill"
+                               RenderOptions.BitmapInterpolationMode="HighQuality" />
+                    </Border>
+
+                    <StackPanel Grid.Column="1" Spacing="8" VerticalAlignment="Center">
+                        <TextBlock Text="{loc:Tr About.Eyebrow}"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   LetterSpacing="2.2"
+                                   Foreground="#B9A9FF" />
+                        <TextBlock Text="PMCL" Classes="h1" FontSize="32" />
+                        <TextBlock Text="{loc:Tr About.Subtitle}"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="#C3B5FF" />
+                        <TextBlock Text="{loc:Tr About.Description}"
+                                   Classes="muted"
+                                   FontSize="13"
+                                   MaxWidth="600"
+                                   TextWrapping="Wrap" />
+
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,6,0,0">
+                            <Border Background="{StaticResource AccentSoftBrush}"
+                                    CornerRadius="99"
+                                    Padding="11,5">
+                                <TextBlock Text="{Binding AppVersionText}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold" />
+                            </Border>
+                            <Border Background="#17251D"
+                                    CornerRadius="99"
+                                    Padding="11,5">
+                                <TextBlock Text="{loc:Tr About.LicenseBadge}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource SuccessBrush}" />
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+
+            <Grid ColumnDefinitions="1.15*,1*" ColumnSpacing="16">
+                <Border Grid.Column="0" Classes="card">
+                    <StackPanel Spacing="16">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="{loc:Tr About.Contact}" Classes="h2" FontSize="16" />
+                            <TextBlock Text="{loc:Tr About.ContactHint}"
+                                       Classes="muted"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <Border Background="{StaticResource FieldBrush}"
+                                BorderBrush="#263045"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="14">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="{loc:Tr About.GitHub}" Classes="label" Margin="0" />
+                                    <TextBlock Text="{Binding GitHubDisplay}"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Classes="secondary"
+                                        Padding="14,8"
+                                        VerticalAlignment="Center"
+                                        Content="{loc:Tr About.Open}"
+                                        Command="{Binding OpenGitHubCommand}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Background="{StaticResource FieldBrush}"
+                                BorderBrush="#263045"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="14">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="{loc:Tr About.Email}" Classes="label" Margin="0" />
+                                    <TextBlock Text="{Binding EmailDisplay}"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Classes="secondary"
+                                        Padding="14,8"
+                                        VerticalAlignment="Center"
+                                        Content="{loc:Tr About.SendEmail}"
+                                        Command="{Binding OpenEmailCommand}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Background="{StaticResource FieldBrush}"
+                                BorderBrush="#263045"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="14">
+                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                                <StackPanel Spacing="3">
+                                    <TextBlock Text="{loc:Tr About.Repository}" Classes="label" Margin="0" />
+                                    <TextBlock Text="{Binding RepositoryDisplay}"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        Classes="secondary"
+                                        Padding="14,8"
+                                        VerticalAlignment="Center"
+                                        Content="{loc:Tr About.Open}"
+                                        Command="{Binding OpenRepositoryCommand}" />
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Classes="card">
+                    <StackPanel Spacing="16">
+                        <StackPanel Spacing="3">
+                            <TextBlock Text="{loc:Tr About.License}" Classes="h2" FontSize="16" />
+                            <TextBlock Text="{loc:Tr About.LicenseName}"
+                                       FontWeight="SemiBold"
+                                       Foreground="#C3B5FF" />
+                        </StackPanel>
+
+                        <TextBlock Text="{loc:Tr About.LicenseDescription}"
+                                   Classes="muted"
+                                   TextWrapping="Wrap" />
+
+                        <Border Background="#101725"
+                                BorderBrush="#2B3548"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="14">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="{loc:Tr About.CopyrightLabel}" Classes="label" Margin="0" />
+                                <TextBlock Text="{Binding CopyrightText}"
+                                           FontSize="14"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="{loc:Tr About.RightsReserved}"
+                                           Classes="muted"
+                                           FontSize="11" />
+                            </StackPanel>
+                        </Border>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Classes="primary"
+                                    Content="{loc:Tr About.ViewLicense}"
+                                    Command="{Binding OpenLicenseCommand}" />
+                            <Button Classes="secondary"
+                                    Content="{loc:Tr About.SourceCode}"
+                                    Command="{Binding OpenRepositoryCommand}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Classes="card" Padding="20">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="{loc:Tr About.BuiltWith}" FontWeight="SemiBold" />
+                        <TextBlock Text="Avalonia 12 · CmlLib.Core 4.1 · .NET 10"
+                                   Classes="muted"
+                                   FontSize="11" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1"
+                               Text="{loc:Tr About.Thanks}"
+                               Classes="muted"
+                               MaxWidth="320"
+                               TextWrapping="Wrap"
+                               TextAlignment="Right"
+                               VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
+

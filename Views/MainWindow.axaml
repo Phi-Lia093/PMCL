@@ -7,7 +7,7 @@
         mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
         x:Class="PMCL.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/logo.ico"
         Title="PMCL - Philia093's MineCraft Launcher"
         Width="1240" Height="720"
         MinWidth="1000" MinHeight="660"
@@ -92,36 +92,24 @@
                                    FontWeight="Bold" />
 
                         <Button Classes="nav" Classes.active="{Binding IsHomeSelected}"
-                                Command="{Binding NavigateHomeCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock Text="◈" FontSize="15" VerticalAlignment="Center" />
-                                <TextBlock Text="{loc:Tr Nav.Home}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
+                                Content="{loc:Tr Nav.Home}"
+                                Command="{Binding NavigateHomeCommand}" />
 
                         <Button Classes="nav" Classes.active="{Binding IsVersionsSelected}"
-                                Command="{Binding NavigateVersionsCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock Text="▤" FontSize="15" VerticalAlignment="Center" />
-                                <TextBlock Text="{loc:Tr Nav.Versions}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
+                                Content="{loc:Tr Nav.Versions}"
+                                Command="{Binding NavigateVersionsCommand}" />
 
                         <Button Classes="nav" Classes.active="{Binding IsAccountSelected}"
-                                Command="{Binding NavigateAccountCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock Text="☺" FontSize="15" VerticalAlignment="Center" />
-                                <TextBlock Text="{loc:Tr Nav.Accounts}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
+                                Content="{loc:Tr Nav.Accounts}"
+                                Command="{Binding NavigateAccountCommand}" />
 
                         <Button Classes="nav" Classes.active="{Binding IsSettingsSelected}"
-                                Command="{Binding NavigateSettingsCommand}">
-                            <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock Text="⚙" FontSize="15" VerticalAlignment="Center" />
-                                <TextBlock Text="{loc:Tr Nav.Settings}" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Button>
+                                Content="{loc:Tr Nav.Settings}"
+                                Command="{Binding NavigateSettingsCommand}" />
+
+                        <Button Classes="nav" Classes.active="{Binding IsAboutSelected}"
+                                Content="{loc:Tr Nav.About}"
+                                Command="{Binding NavigateAboutCommand}" />
 
                         <Border Background="#101725"
                                 BorderBrush="#1F2A3C"
@@ -146,7 +134,7 @@
                     </StackPanel>
 
                     <TextBlock Grid.Row="1"
-                               Text="{Binding AppVersionText}"
+                               Text="{Binding About.AppVersionText}"
                                Classes="muted"
                                FontSize="10" />
                 </Grid>

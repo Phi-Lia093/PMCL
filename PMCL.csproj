@@ -8,12 +8,21 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>Assets\avalonia-logo.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\logo.ico</ApplicationIcon>
     <AssemblyName>PMCL</AssemblyName>
     <RootNamespace>PMCL</RootNamespace>
     <Version>0.1.0</Version>
+    <AssemblyVersion>0.1.0.0</AssemblyVersion>
+    <FileVersion>0.1.0.0</FileVersion>
+    <InformationalVersion>0.1.0</InformationalVersion>
     <Product>Philia093's MineCraft Launcher</Product>
     <AssemblyTitle>PMCL</AssemblyTitle>
+    <Authors>PhiLia093</Authors>
+    <Company>PhiLia093</Company>
+    <Copyright>Copyright © 2026 PhiLia093</Copyright>
+    <RepositoryUrl>https://github.com/Phi-Lia093/PMCL</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**;out\**;publish\**</DefaultItemExcludes>
   </PropertyGroup>
 
   <ItemGroup>

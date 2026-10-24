@@ -4,7 +4,7 @@
 
 - 名称：PMCL（**P**hilia093's **M**ine**C**raft **L**auncher）
 - 目标：基于 C# / .NET 与 Avalonia 的现代 Minecraft Java 版启动器。
-- 当前能力：官方 / BMCLAPI 下载源切换、原版版本列表 / 下载安装 / 启动、下载百分比与实时速度、Forge / Fabric / NeoForge / OptiFine 模组加载器自动下载安装与互斥管理、版本内模组列表 / 启用 / 禁用 / 删除、Modrinth 模组搜索与下载（按 Minecraft 版本与加载器自动过滤兼容性、自动安装必需前置）、多账户管理（Microsoft / 离线）、Microsoft 设备码系统浏览器登录（含静默恢复与令牌缓存）、账户切换 / 删除、按版本独立配置 Java / 内存 / 窗口 / 登录方式 / 自动进服 / JVM 参数 / 游戏参数 / 启动前命令、强制版本隔离（存档 / 截图 / 模组 / 配置 / 资源包按版本隔离，libraries/assets/runtime 共享）、版本重命名 / 删除 / 补全 / 导出启动脚本、全局游戏目录与多语言（简体中文 / English，JSON 词条）、现代深色 UI。
+- 当前能力：官方 / BMCLAPI 下载源切换、原版版本列表 / 下载安装 / 启动、下载百分比与实时速度、Forge / Fabric / NeoForge / OptiFine 模组加载器自动下载安装与互斥管理、版本内模组列表 / 启用 / 禁用 / 删除、Modrinth 模组搜索与下载（按 Minecraft 版本与加载器自动过滤兼容性、自动安装必需前置）、多账户管理（Microsoft / 离线）、Microsoft 设备码系统浏览器登录（含静默恢复与令牌缓存）、账户切换 / 删除、按版本独立配置 Java / 内存 / 窗口 / 登录方式 / 自动进服 / JVM 参数 / 游戏参数 / 启动前命令、强制版本隔离（存档 / 截图 / 模组 / 配置 / 资源包按版本隔离，libraries/assets/runtime 共享）、版本重命名 / 删除 / 补全 / 导出启动脚本、全局游戏目录与多语言（简体中文 / English，JSON 词条）、现代深色 UI、关于页（作者 / GitHub / 邮箱 / GPL-3.0 与版权声明）、GitHub Actions 自动发布 Windows x64 / x86 自包含单文件版。
 - 当前版本：`0.1.0`（见 `PMCL.csproj`）。
 
 ## 2. 技术栈
@@ -15,7 +15,7 @@
 | UI | Avalonia `12.1.4` + Fluent 主题 + Inter 字体 |
 | MVVM | CommunityToolkit.Mvvm `8.4.2`（`[ObservableProperty]` 使用 **partial property** 写法） |
 | Minecraft | CmlLib.Core `4.1.0`、CmlLib.Core.Installer.Forge `2.0.0`（Forge / NeoForge 安装引擎） |
-| 输出 | Windows `WinExe` / 其他平台 `Exe`，程序集名 `PMCL` |
+| 输出 | Windows `WinExe` / 其他平台 `Exe`，程序集名 `PMCL`；发布包为自包含单文件 `PMCL.exe`（win-x64 / win-x86） |
 
 ## 3. 常用命令（Windows / PowerShell）
 
@@ -31,6 +31,9 @@ D:\PMCL\bin\Debug\net10.0\PMCL.exe
 
 # 无头测试：控制台 Harness，不创建 Avalonia 窗口，也不启动游戏
 dotnet run --project D:\PMCL\bin\Harness\Harness.csproj --nologo
+
+# 生成 v0.1.0 发布包（win-x64 / win-x86 单文件 zip + SHA256）
+powershell -NoProfile -ExecutionPolicy Bypass -File D:\PMCL\scripts\publish-release.ps1 -Version v0.1.0
 ```
 
 开发与测试优先使用无头 Harness；`dotnet build`、Harness、目录操作均不会弹出启动器窗口。不要在自动测试中执行带 GUI 的 `dotnet run --project PMCL.csproj`。
@@ -43,9 +46,15 @@ D:\PMCL
 ├─ Program.cs                    # Avalonia AppBuilder 入口
 ├─ ViewLocator.cs                # ViewModel -> View 约定映射
 ├─ PMCL.csproj
-├─ Assets/i18n/
-│  ├─ zh-CN.json                 # 简体中文词条（默认语言）
-│  └─ en-US.json                 # English 词条（键必须与 zh-CN 完全一致）
+├─ NOTICE                        # 项目版权与 GPL-3.0 声明（随发布包分发）
+├─ LICENSE                       # GNU General Public License v3.0
+├─ .github/workflows/release.yml # 标签推送后构建并创建 GitHub Release
+├─ scripts/publish-release.ps1   # 本地/CI 单文件发布脚本
+├─ Assets/
+│  ├─ logo.ico                   # 应用、窗口、托盘与关于页头像图标
+│  └─ i18n/
+│     ├─ zh-CN.json              # 简体中文词条（默认语言）
+│     └─ en-US.json              # English 词条（键必须与 zh-CN 完全一致）
 ├─ Localization/
 │  ├─ LocalizationService.cs     # 语言词条加载、缺失回退、语言切换事件
 │  ├─ L.cs                       # 代码侧 `L.Tr` / `L.Format` 快捷入口
@@ -69,7 +78,7 @@ D:\PMCL
 │  ├─ AuthenticationService.cs   # OAuth 设备码 → Xbox → Minecraft 登录/刷新/离线会话
 │  ├─ CommandLineSplitter.cs     # JVM / 游戏参数分词
 │  ├─ MicrosoftOAuthClient.cs    # Microsoft OAuth 设备码/刷新令牌
-│  ├─ SystemBrowserService.cs    # 使用系统默认浏览器打开登录页
+│  ├─ SystemBrowserService.cs    # 使用系统默认浏览器打开网页与 mailto 链接
 │  ├─ DownloadSourceRouter.cs    # HTTP 层官方/BMCLAPI 路由与官方回退
 │  ├─ DownloadSpeedTracker.cs    # 下载速度平滑与字节格式化
 │  ├─ GameLaunchCoordinator.cs   # 安装、补全、加载器互斥安装/移除、按版本启动、脚本导出
@@ -94,6 +103,7 @@ D:\PMCL
 │  ├─ AccountViewModel.cs        # 多账户列表、设备码登录、切换 / 删除 / 自动恢复
 │  ├─ VersionSettingsViewModel.cs# 版本设置页（启动参数、模组管理、Modrinth）
 │  ├─ SettingsViewModel.cs       # 全局设置页（游戏目录、语言切换）
+│  ├─ AboutViewModel.cs          # 关于页（版本、GitHub、邮箱、许可与版权）
 │  ├─ JavaRuntimeOption.cs       # Java 下拉选项（空路径 = 自动 / CmlLib 下载）
 │  └─ VersionItemViewModel.cs    # 列表项（筛选用）
 └─ Views/
@@ -103,7 +113,8 @@ D:\PMCL
    ├─ ModLoaderSelectorView.axaml(.cs) # 版本库/版本设置共用的加载器选择弹层
    ├─ AccountView.axaml(.cs)
    ├─ VersionSettingsView.axaml(.cs)
-   └─ SettingsView.axaml(.cs)
+   ├─ SettingsView.axaml(.cs)
+   └─ AboutView.axaml(.cs)        # 作者头像 / GitHub / 邮箱 / GPL-3.0 与版权
 ```
 
 ## 5. 运行时数据
@@ -133,11 +144,12 @@ D:\PMCL
 
 ## 6. 架构约定
 
-1. **组合根**：`App.OnFrameworkInitializationCompleted` 手工构造 `AppPaths → SettingsService → LauncherSession → AuthenticationService → MinecraftService → JavaRuntimeService → StoragePickerService → MainViewModel`，不使用 DI 容器；`MainViewModel` 再创建 `ModLoaderService`、`ModService`（本地模组文件）与 `ModrinthService`（HTTP API）并注入版本设置页。
+1. **组合根**：`App.OnFrameworkInitializationCompleted` 手工构造 `AppPaths → SettingsService → LauncherSession → AuthenticationService → MinecraftService → JavaRuntimeService → StoragePickerService → MainViewModel`，不使用 DI 容器；`MainViewModel` 再创建 `ModLoaderService`、`ModService`（本地模组文件）与 `ModrinthService`（HTTP API）并注入版本设置页，同时创建 `AboutViewModel`。
 2. **单一共享状态**：所有页面绑定同一个 `LauncherSession`；全局忙碌/进度/错误由 `BeginBusy` / `EndBusy` / `SetStatus` / `SetError` 驱动。
 3. **页面导航**：`MainViewModel.CurrentPage` 是 `ViewModelBase`，通过 `ContentControl` + `ViewLocator` 渲染。
    - `PMCL.ViewModels.HomeViewModel` → `PMCL.Views.HomeView`（依赖 `ViewModel` → `View` 的命名替换，新增页面必须遵守）。
    - 版本设置页不是侧边栏页面：主页选择已安装版本后由 `MainViewModel.OpenVersionSettings` 打开；打开期间主页导航保持高亮。
+   - 侧边栏页面：主页、版本库、账户、全局设置、关于；导航按钮只显示文字，不使用符号图标。
 4. **回调解耦**：子页面通过构造函数接收 `Func<Task>`（如 `RefreshVersionsAsync`）或 `Action`，不直接引用 `MainViewModel`。
 5. **异步与 UI 线程**：Microsoft 设备码登录的 HTTP 链与轮询使用 `async/await`（`ConfigureAwait(false)`），浏览器打开只做 `Process.Start`；CmlLib 的阻塞安装调用仍放在异步流程中，UI 线程只负责状态更新。
 6. **绑定**：`x:DataType` + 编译绑定；属性名 / 命令名改动必须同步 XAML，编译期即可发现拼写错误。
@@ -150,7 +162,7 @@ D:\PMCL
    - XAML：`{loc:Tr Section.Key}`（`xmlns:loc="using:PMCL.Localization"`）。
    - 代码：`L.Tr("Section.Key")`，带占位符用 `L.Format("Section.Key", ...)`，`{0}` 为参数位。
    - 词条文件：`Assets/i18n/zh-CN.json`（默认）与 `en-US.json`；新增键必须同时写入两份文件，键名保持完全一致，缺失键会回退默认语言再回退键名本身。
-   - 键名按功能前缀分组：`App`、`Nav`、`Home`、`Versions`、`Version`、`Settings`、`Account`、`Loader`、`Mod`、`Modrinth`（`MR`）、`Launch`、`Auth`、`OAuth`、`MC`、`ML`、`Storage`、`Browser`、`Status`、`Tray`、`Page`。
+   - 键名按功能前缀分组：`App`、`Nav`、`Home`、`Versions`、`Version`、`Settings`、`Account`、`Loader`、`Mod`、`Modrinth`（`MR`）、`Launch`、`Auth`、`OAuth`、`MC`、`ML`、`Storage`、`Browser`、`Status`、`Tray`、`Page`、`About`。
    - 语言名称本身（如 `简体中文`）不翻译，保持母语写法，方便用户找到自己的语言。
    - 代码注释与标识符仍使用英文。
 
@@ -185,7 +197,7 @@ D:\PMCL
 - 模组文件操作统一走 `ModService`；不要手动拼接 `.disabled` 后缀，也不要绕过 `ModService.Scan` 直接枚举目录，否则会漏掉禁用文件或把非 jar 文件当成模组。
 - Modrinth 相关逻辑统一走 `ModrinthService`；兼容性判断必须同时限定 Minecraft 版本与加载器，依赖递归要带去重集合，避免循环依赖导致无限下载。
 - 修改 CmlLib API 用法后务必检查包版本（`dotnet list package`），不同版本的事件参数成员可能不同（例如 `ExtraJvmArguments` 需要 `MArgument`，不是裸字符串）。
-- 提交前至少运行一次 `dotnet build`，并启动程序确认主页、版本库、账户、全局设置、版本设置五个页面与版本列表 / 登录流程无异常。
+- 提交前至少运行一次 `dotnet build`，并启动程序确认主页、版本库、账户、全局设置、版本设置、关于六个页面与版本列表 / 登录流程无异常。
 - 涉及版本文件操作时，用临时游戏目录验证重命名 / 删除，至少确认 json `id`、jar 名称、`inheritsFrom` 与 `versionSettings` 键同步。
 - 修改 Microsoft 登录时注意：官方 Minecraft 客户端 ID 只支持设备码与固定 desktop 回调，不能把回调重定向到 `localhost`；只有接入自建 Entra 应用（自行注册 loopback redirect）才适合做完全无输入的浏览器回跳。
 - 修改模组管理 / Modrinth 时，Harness 已覆盖 `ModService` 的重命名/删除、facet 兼容性、依赖递归与 `VersionSettingsViewModel` 的列表/安装流程；新增网络逻辑应继续使用 `FakeModrinthHandler` 保证测试离线可重复。
@@ -203,7 +215,8 @@ D:\PMCL
 - [ ] 日志查看器（`%APPDATA%\PMCL\logs`）
 - [x] 多账户管理与账户切换体验优化（Microsoft 系统浏览器设备码登录、离线账户、令牌缓存/刷新）
 - [ ] 多语言（中 / 英）与主题切换
-- [ ] 自动更新与发布流水线
+- [x] 发布流水线（GitHub Actions：win-x64 / win-x86 单文件包）
+- [ ] 自动更新
 
 ## 10. 已知约束
 
@@ -222,3 +235,16 @@ D:\PMCL
 - 旧版共享布局升级到强制隔离布局时不会自动移动文件（避免把存档复制多份）；需要在版本设置点击「导入旧共享数据」手动迁移。删除版本会连同其私有存档 / 截图 / 模组一起删除，UI 已提示。
 - Modrinth 需要访问 `api.modrinth.com` 与 `cdn.modrinth.com`，并带有符合要求的 User-Agent；仅 Fabric / Forge / NeoForge 版本可使用，原版与 OptiFine 不提供入口。下载只跳过同名文件，不会自动删除旧版本模组；可选依赖不会自动安装。
 - 导出的启动脚本包含当前登录令牌，令牌过期后需要重新导出。
+
+## 11. 发布流程
+
+1. 在 `PMCL.csproj` 中把 `<Version>` / `<AssemblyVersion>` / `<FileVersion>` / `<InformationalVersion>` 更新为目标版本，提交并推送。
+2. 本地验证发布脚本（版本必须与 csproj 完全一致）：
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File D:\PMCL\scripts\publish-release.ps1 -Version v0.1.0
+   ```
+   产物位于 `artifacts\release\v0.1.0\`：`PMCL-v0.1.0-win-x64.zip` / `PMCL-v0.1.0-win-x86.zip` 及对应 `.sha256`。
+3. 推送 `v*` 标签（例如 `git tag v0.1.0; git push origin v0.1.0`）。`.github/workflows/release.yml` 会用 `windows-latest` + .NET 10 构建两个 RID，并自动创建 GitHub Release、上传 zip 与 SHA256。
+4. `workflow_dispatch` 只构建并上传 Actions artifact，不创建 Release，适合预发布验证。
+
+发布包内容：单文件 `PMCL.exe`、`LICENSE`（GPL-3.0）、`NOTICE`。`ApplicationIcon`、主窗口、托盘与关于页头像统一使用 `Assets/logo.ico`。

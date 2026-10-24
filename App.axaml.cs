@@ -121,7 +121,7 @@ public partial class App : Application
             var trayIcon = new TrayIcon
             {
                 ToolTipText = "PMCL - Philia093's MineCraft Launcher",
-                Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://PMCL/Assets/avalonia-logo.ico"))),
+                Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://PMCL/Assets/logo.ico"))),
                 Menu = menu,
                 IsVisible = true
             };
