@@ -77,6 +77,12 @@
                             Command="{Binding SelectSectionCommand}"
                             CommandParameter="Mods" />
                     <Button Classes="nav"
+                            Classes.active="{Binding IsContentSection}"
+                            Padding="18,8"
+                            Content="{loc:Tr Tab.Content}"
+                            Command="{Binding SelectSectionCommand}"
+                            CommandParameter="ContentPacks" />
+                    <Button Classes="nav"
                             Classes.active="{Binding IsModDownloadsSection}"
                             Padding="18,8"
                             Content="{loc:Tr Tab.Modrinth}"
@@ -302,6 +308,15 @@
                                 Command="{Binding OpenModsFolderCommand}" />
                     </Grid>
 
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Classes="primary"
+                                Content="{loc:Tr VS.Mods.InstallLocal}"
+                                Command="{Binding InstallFromLocalCommand}" />
+                        <Button Classes="secondary"
+                                Content="{loc:Tr VS.Mods.DownloadNew}"
+                                Command="{Binding OpenModDownloadsCommand}" />
+                    </StackPanel>
+
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <TextBox Text="{Binding LocalModSearchText}"
                                  PlaceholderText="{loc:Tr VS.SearchMods}" />
@@ -311,9 +326,72 @@
                                   VerticalAlignment="Center" />
                     </Grid>
 
+                    <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="10">
+                        <Button Classes="secondary"
+                                Padding="12,7"
+                                Content="{Binding SelectAllModsLabel}"
+                                IsEnabled="{Binding CanSelectAllMods}"
+                                Command="{Binding ToggleSelectAllModsCommand}" />
+                        <Button Grid.Column="1"
+                                Classes="secondary"
+                                Padding="12,7"
+                                Content="{loc:Tr VS.Mods.UpdateSelected}"
+                                IsEnabled="{Binding CanUpdateSelectedMods}"
+                                Command="{Binding UpdateSelectedModsCommand}" />
+                        <Button Grid.Column="2"
+                                Classes="danger"
+                                Padding="12,7"
+                                Content="{loc:Tr VS.Mods.DeleteSelected}"
+                                IsEnabled="{Binding HasSelectedMods}"
+                                Command="{Binding RequestDeleteSelectedModsCommand}" />
+                        <TextBlock Grid.Column="3"
+                                   Classes="muted"
+                                   Text="{Binding SelectedModsText}"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+
+                    <Border IsVisible="{Binding IsBatchDeleteConfirmVisible}"
+                            Background="#2A1620"
+                            BorderBrush="#6E2B39"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="10">
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                            <TextBlock Text="{loc:Tr VS.Mods.DeleteSelectedConfirm}"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center" />
+                            <Button Grid.Column="1"
+                                    Classes="danger"
+                                    Padding="12,6"
+                                    Content="{loc:Tr VS.ConfirmDelete}"
+                                    Command="{Binding ConfirmDeleteSelectedModsCommand}" />
+                            <Button Grid.Column="2"
+                                    Classes="secondary"
+                                    Padding="12,6"
+                                    Content="{loc:Tr Common.Cancel}"
+                                    Command="{Binding CancelDeleteSelectedModsCommand}" />
+                        </Grid>
+                    </Border>
+
                     <TextBlock Text="{Binding LocalModStatusText}"
                                Classes="muted"
                                TextWrapping="Wrap" />
+
+                    <Grid ColumnDefinitions="Auto,*"
+                          ColumnSpacing="10"
+                          IsVisible="{Binding HasModUpdateStatus}">
+                        <ProgressBar Width="90"
+                                     Height="4"
+                                     IsIndeterminate="True"
+                                     VerticalAlignment="Center"
+                                     IsVisible="{Binding IsModEnriching}" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding ModUpdateStatusText}"
+                                   Classes="muted"
+                                   TextWrapping="Wrap" />
+                    </Grid>
 
                     <Border IsVisible="{Binding HasNoLocalMods}"
                             Background="{StaticResource FieldBrush}"
@@ -329,18 +407,55 @@
                     <ItemsControl ItemsSource="{Binding LocalMods}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="vm:ModItemViewModel">
-                                <Border Background="{StaticResource FieldBrush}"
-                                        BorderBrush="#263045"
-                                        BorderThickness="1"
-                                        CornerRadius="10"
+                                <Border Classes="modRow"
+                                        Classes.error="{Binding HasErrorWarning}"
                                         Padding="12"
                                         Margin="0,0,0,8">
+                                    <Border.Styles>
+                                        <Style Selector="Border.modRow">
+                                            <Setter Property="Background" Value="{StaticResource FieldBrush}" />
+                                            <Setter Property="BorderBrush" Value="#263045" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                            <Setter Property="CornerRadius" Value="10" />
+                                        </Style>
+                                        <Style Selector="Border.modRow.error">
+                                            <Setter Property="Background" Value="#241520" />
+                                            <Setter Property="BorderBrush" Value="#6E2B39" />
+                                        </Style>
+                                    </Border.Styles>
+
                                     <StackPanel Spacing="8">
-                                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
-                                            <StackPanel Spacing="3">
+                                        <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="10">
+                                            <CheckBox IsChecked="{Binding IsSelected}"
+                                                      VerticalAlignment="Top"
+                                                      Margin="0,4,0,0"
+                                                      ToolTip.Tip="{loc:Tr VS.Mods.SelectHint}" />
+
+                                            <Border Grid.Column="1"
+                                                    Width="40"
+                                                    Height="40"
+                                                    CornerRadius="8"
+                                                    ClipToBounds="True"
+                                                    Background="{StaticResource AccentSoftBrush}"
+                                                    VerticalAlignment="Top">
+                                                <Panel>
+                                                    <TextBlock Text="{Binding IconInitial}"
+                                                               FontSize="16"
+                                                               FontWeight="Bold"
+                                                               Foreground="#C3B5FF"
+                                                               HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center" />
+                                                    <Image Source="{Binding Icon}"
+                                                           Stretch="UniformToFill"
+                                                           IsVisible="{Binding HasIcon}" />
+                                                </Panel>
+                                            </Border>
+
+                                            <StackPanel Grid.Column="2" Spacing="3">
                                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                                     <TextBlock Text="{Binding DisplayName}"
-                                                               FontWeight="SemiBold" />
+                                                               FontWeight="SemiBold"
+                                                               TextWrapping="Wrap" />
                                                     <Border Background="{StaticResource AccentSoftBrush}"
                                                             CornerRadius="6"
                                                             Padding="7,1"
@@ -349,21 +464,41 @@
                                                                    FontSize="10"
                                                                    Foreground="#C3B5FF" />
                                                     </Border>
+                                                    <Border Background="#2A1620"
+                                                            CornerRadius="6"
+                                                            Padding="7,1"
+                                                            VerticalAlignment="Center"
+                                                            IsVisible="{Binding HasUpdate}">
+                                                        <TextBlock Text="{Binding UpdateBadgeText}"
+                                                                   FontSize="10"
+                                                                   Foreground="{StaticResource DangerBrush}" />
+                                                    </Border>
                                                 </StackPanel>
+
+                                                <TextBlock Text="{Binding DetailText}"
+                                                           Classes="muted"
+                                                           TextWrapping="Wrap" />
                                                 <TextBlock Text="{Binding FileName}"
                                                            Classes="muted"
+                                                           FontSize="10"
                                                            TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding WarningText}"
+                                                           FontSize="11"
+                                                           Foreground="{StaticResource DangerBrush}"
+                                                           TextWrapping="Wrap"
+                                                           IsVisible="{Binding HasWarning}" />
                                             </StackPanel>
 
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{Binding SizeText}"
-                                                       Classes="muted"
-                                                       VerticalAlignment="Center" />
-
-                                            <StackPanel Grid.Column="2"
+                                            <StackPanel Grid.Column="3"
                                                         Orientation="Horizontal"
                                                         Spacing="8"
-                                                        VerticalAlignment="Center">
+                                                        VerticalAlignment="Top">
+                                                <Button Classes="secondary"
+                                                        Padding="12,7"
+                                                        Content="{Binding UpdateLabel}"
+                                                        IsVisible="{Binding HasUpdate}"
+                                                        IsEnabled="{Binding !IsUpdating}"
+                                                        Command="{Binding UpdateCommand}" />
                                                 <Button Classes="secondary"
                                                         Padding="12,7"
                                                         Content="{Binding ToggleLabel}"
@@ -376,6 +511,13 @@
                                                         Command="{Binding RequestDeleteCommand}" />
                                             </StackPanel>
                                         </Grid>
+
+                                        <TextBlock Text="{Binding DescriptionText}"
+                                                   Classes="muted"
+                                                   TextWrapping="Wrap"
+                                                   MaxLines="2"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   IsVisible="{Binding HasDescription}" />
 
                                         <Border IsVisible="{Binding IsDeleteConfirmVisible}"
                                                 Background="#2A1620"
@@ -405,6 +547,296 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card" IsVisible="{Binding IsContentSection}">
+                <StackPanel Spacing="14">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Button Classes="nav"
+                                Classes.active="{Binding IsResourcePacksSelected}"
+                                Padding="14,6"
+                                Content="{loc:Tr Content.Kind.ResourcePack}"
+                                Command="{Binding SelectContentPackKindCommand}"
+                                CommandParameter="0" />
+                        <Button Classes="nav"
+                                Classes.active="{Binding IsShaderPacksSelected}"
+                                Padding="14,6"
+                                Content="{loc:Tr Content.Kind.ShaderPack}"
+                                Command="{Binding SelectContentPackKindCommand}"
+                                CommandParameter="1" />
+                        <Button Classes="nav"
+                                Classes.active="{Binding IsDataPacksSelected}"
+                                Padding="14,6"
+                                Content="{loc:Tr Content.Kind.DataPack}"
+                                Command="{Binding SelectContentPackKindCommand}"
+                                CommandParameter="2" />
+                    </StackPanel>
+
+                    <ContentControl Content="{Binding ActiveContentGroup}">
+                        <ContentControl.ContentTemplate>
+                            <DataTemplate x:DataType="vm:ContentPackGroupViewModel">
+                                <StackPanel Spacing="14">
+                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                                        <StackPanel Spacing="3">
+                                            <TextBlock Text="{Binding Title}" Classes="h2" FontSize="16" />
+                                            <TextBlock Text="{Binding FolderText}"
+                                                       Classes="muted"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Grid.Column="1"
+                                                Classes="secondary"
+                                                Content="{loc:Tr Common.Refresh}"
+                                                Command="{Binding RefreshCommand}" />
+                                        <Button Grid.Column="2"
+                                                Classes="secondary"
+                                                Content="{loc:Tr VS.Content.OpenFolder}"
+                                                Command="{Binding OpenFolderCommand}" />
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding Hint}"
+                                               Classes="muted"
+                                               TextWrapping="Wrap" />
+
+                                    <Grid ColumnDefinitions="Auto,*"
+                                          ColumnSpacing="10"
+                                          IsVisible="{Binding HasMultipleTargets}">
+                                        <TextBlock Text="{loc:Tr VS.Content.Target}"
+                                                   Classes="muted"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center" />
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding Targets}"
+                                                  SelectedIndex="{Binding SelectedTargetIndex, Mode=TwoWay}" />
+                                    </Grid>
+
+                                    <Button Classes="primary"
+                                            HorizontalAlignment="Left"
+                                            Content="{loc:Tr VS.Content.InstallLocal}"
+                                            IsEnabled="{Binding IsVersionInstalled}"
+                                            Command="{Binding InstallLocalCommand}" />
+
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                        <TextBox Text="{Binding LocalSearchText}"
+                                                 PlaceholderText="{loc:Tr VS.Content.SearchLocal}" />
+                                        <CheckBox Grid.Column="1"
+                                                  Content="{loc:Tr VS.ShowDisabled}"
+                                                  IsChecked="{Binding ShowDisabled}"
+                                                  VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding StatusText}"
+                                               Classes="muted"
+                                               TextWrapping="Wrap" />
+
+                                    <Border IsVisible="{Binding ShowEmptyHint}"
+                                            Background="{StaticResource FieldBrush}"
+                                            BorderBrush="#263045"
+                                            BorderThickness="1"
+                                            CornerRadius="10"
+                                            Padding="14">
+                                        <TextBlock Text="{loc:Tr VS.Content.Empty}"
+                                                   Classes="muted"
+                                                   TextWrapping="Wrap" />
+                                    </Border>
+
+                                    <ItemsControl ItemsSource="{Binding Items}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:ContentPackItemViewModel">
+                                                <Border Background="{StaticResource FieldBrush}"
+                                                        BorderBrush="#263045"
+                                                        BorderThickness="1"
+                                                        CornerRadius="10"
+                                                        Padding="12"
+                                                        Margin="0,0,0,8">
+                                                    <StackPanel Spacing="8">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                                                            <Border Width="40"
+                                                                    Height="40"
+                                                                    CornerRadius="8"
+                                                                    Background="{StaticResource AccentSoftBrush}"
+                                                                    VerticalAlignment="Top">
+                                                                <TextBlock Text="{Binding IconInitial}"
+                                                                           FontSize="16"
+                                                                           FontWeight="Bold"
+                                                                           Foreground="#C3B5FF"
+                                                                           HorizontalAlignment="Center"
+                                                                           VerticalAlignment="Center" />
+                                                            </Border>
+                                                            <StackPanel Grid.Column="1" Spacing="3">
+                                                                <TextBlock Text="{Binding DisplayName}"
+                                                                           FontWeight="SemiBold"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Text="{Binding FileName}"
+                                                                           Classes="muted"
+                                                                           FontSize="10"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                    <TextBlock Text="{Binding SizeText}"
+                                                                               Classes="muted"
+                                                                               FontSize="10" />
+                                                                    <TextBlock Text="{Binding StatusText}"
+                                                                               FontSize="10"
+                                                                               Foreground="{StaticResource SuccessBrush}"
+                                                                               IsVisible="{Binding IsEnabled}" />
+                                                                    <TextBlock Text="{Binding StatusText}"
+                                                                               Classes="muted"
+                                                                               FontSize="10"
+                                                                               IsVisible="{Binding !IsEnabled}" />
+                                                                    <Border Background="#1B2233"
+                                                                            CornerRadius="6"
+                                                                            Padding="7,1"
+                                                                            IsVisible="{Binding HasContainer}">
+                                                                        <TextBlock Text="{Binding ContainerLabel}"
+                                                                                   FontSize="10"
+                                                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                                                    </Border>
+                                                                </StackPanel>
+                                                            </StackPanel>
+                                                            <StackPanel Grid.Column="2"
+                                                                        Orientation="Horizontal"
+                                                                        Spacing="6"
+                                                                        VerticalAlignment="Center">
+                                                                <Button Classes="secondary"
+                                                                        Padding="12,7"
+                                                                        Content="{Binding ToggleLabel}"
+                                                                        ToolTip.Tip="{Binding ToggleHint}"
+                                                                        Command="{Binding ToggleCommand}" />
+                                                                <Button Classes="danger"
+                                                                        Padding="12,7"
+                                                                        Content="{loc:Tr Common.Delete}"
+                                                                        IsVisible="{Binding !IsDeleteConfirmVisible}"
+                                                                        Command="{Binding RequestDeleteCommand}" />
+                                                            </StackPanel>
+                                                        </Grid>
+
+                                                        <Border IsVisible="{Binding IsDeleteConfirmVisible}"
+                                                                Background="#2A1620"
+                                                                BorderBrush="#6E2B39"
+                                                                BorderThickness="1"
+                                                                CornerRadius="8"
+                                                                Padding="10">
+                                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                                                <TextBlock Text="{loc:Tr VS.Content.DeleteConfirm}"
+                                                                           FontSize="12"
+                                                                           TextWrapping="Wrap"
+                                                                           VerticalAlignment="Center" />
+                                                                <Button Grid.Column="1"
+                                                                        Classes="danger"
+                                                                        Padding="12,6"
+                                                                        Content="{loc:Tr VS.ConfirmDelete}"
+                                                                        Command="{Binding ConfirmDeleteCommand}" />
+                                                                <Button Grid.Column="2"
+                                                                        Classes="secondary"
+                                                                        Padding="12,6"
+                                                                        Content="{loc:Tr Common.Cancel}"
+                                                                        Command="{Binding CancelDeleteCommand}" />
+                                                            </Grid>
+                                                        </Border>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <StackPanel Spacing="10">
+                                        <TextBlock Text="{loc:Tr VS.Content.ModrinthTitle}" Classes="label" />
+
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                            <TextBox Text="{Binding SearchText}"
+                                                     PlaceholderText="{loc:Tr VS.Content.SearchHint}"
+                                                     IsEnabled="{Binding IsVersionInstalled}" />
+                                            <Button Grid.Column="1"
+                                                    Classes="primary"
+                                                    Content="{Binding SearchButtonText}"
+                                                    IsEnabled="{Binding CanSearch}"
+                                                    Command="{Binding SearchCommand}" />
+                                        </Grid>
+
+                                        <ProgressBar Height="4"
+                                                     IsIndeterminate="True"
+                                                     IsVisible="{Binding IsSearching}" />
+
+                                        <TextBlock Text="{Binding SearchStatusText}"
+                                                   Classes="muted"
+                                                   TextWrapping="Wrap" />
+
+                                        <ItemsControl ItemsSource="{Binding Results}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:ModrinthProjectItemViewModel">
+                                                    <Border Background="{StaticResource FieldBrush}"
+                                                            BorderBrush="#263045"
+                                                            BorderThickness="1"
+                                                            CornerRadius="10"
+                                                            Padding="12"
+                                                            Margin="0,0,0,8">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                                            <Border Width="40"
+                                                                    Height="40"
+                                                                    CornerRadius="8"
+                                                                    ClipToBounds="True"
+                                                                    Background="{StaticResource AccentSoftBrush}"
+                                                                    VerticalAlignment="Top">
+                                                                <Panel>
+                                                                    <TextBlock Text="{Binding IconInitial}"
+                                                                               FontSize="16"
+                                                                               FontWeight="Bold"
+                                                                               Foreground="#C3B5FF"
+                                                                               HorizontalAlignment="Center"
+                                                                               VerticalAlignment="Center" />
+                                                                    <Image Source="{Binding Icon}"
+                                                                           Stretch="UniformToFill"
+                                                                           IsVisible="{Binding HasIcon}" />
+                                                                </Panel>
+                                                            </Border>
+
+                                                            <StackPanel Grid.Column="1" Spacing="4">
+                                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                                    <TextBlock Text="{Binding Title}"
+                                                                               FontWeight="SemiBold" />
+                                                                    <Border Background="#1B2233"
+                                                                            CornerRadius="6"
+                                                                            Padding="7,1"
+                                                                            VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding VersionSummary}"
+                                                                                   FontSize="10"
+                                                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                                                    </Border>
+                                                                </StackPanel>
+                                                                <TextBlock Text="{Binding Description}"
+                                                                           Classes="muted"
+                                                                           TextWrapping="Wrap"
+                                                                           MaxLines="2"
+                                                                           TextTrimming="CharacterEllipsis" />
+                                                                <TextBlock Text="{Binding AuthorText}"
+                                                                           Classes="muted"
+                                                                           FontSize="10" />
+                                                            </StackPanel>
+
+                                                            <StackPanel Grid.Column="2"
+                                                                        Spacing="6"
+                                                                        VerticalAlignment="Center"
+                                                                        HorizontalAlignment="Right">
+                                                                <Button Classes="primary"
+                                                                        Padding="14,8"
+                                                                        Content="{Binding InstallLabel}"
+                                                                        IsEnabled="{Binding !IsInstalling}"
+                                                                        Command="{Binding InstallCommand}" />
+                                                                <TextBlock Text="{Binding DownloadsText}"
+                                                                           Classes="muted"
+                                                                           FontSize="10"
+                                                                           HorizontalAlignment="Right" />
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ContentControl.ContentTemplate>
+                    </ContentControl>
                 </StackPanel>
             </Border>
 
@@ -453,6 +885,10 @@
                                 Command="{Binding SearchModrinthCommand}" />
                     </Grid>
 
+                    <ProgressBar Height="4"
+                                 IsIndeterminate="True"
+                                 IsVisible="{Binding IsModrinthSearching}" />
+
                     <TextBlock Text="{Binding ModrinthStatusText}"
                                Classes="muted"
                                TextWrapping="Wrap" />
@@ -466,8 +902,27 @@
                                         CornerRadius="10"
                                         Padding="12"
                                         Margin="0,0,0,8">
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                                        <StackPanel Spacing="4">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                                        <Border Width="40"
+                                                Height="40"
+                                                CornerRadius="8"
+                                                ClipToBounds="True"
+                                                Background="{StaticResource AccentSoftBrush}"
+                                                VerticalAlignment="Top">
+                                            <Panel>
+                                                <TextBlock Text="{Binding IconInitial}"
+                                                           FontSize="16"
+                                                           FontWeight="Bold"
+                                                           Foreground="#C3B5FF"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                                <Image Source="{Binding Icon}"
+                                                       Stretch="UniformToFill"
+                                                       IsVisible="{Binding HasIcon}" />
+                                            </Panel>
+                                        </Border>
+
+                                        <StackPanel Grid.Column="1" Spacing="4">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
                                                 <TextBlock Text="{Binding Title}"
                                                            FontWeight="SemiBold" />
@@ -488,7 +943,7 @@
                                                        FontSize="10" />
                                         </StackPanel>
 
-                                        <StackPanel Grid.Column="1"
+                                        <StackPanel Grid.Column="2"
                                                     Spacing="6"
                                                     VerticalAlignment="Center"
                                                     HorizontalAlignment="Right">

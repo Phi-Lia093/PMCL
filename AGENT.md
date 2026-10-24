@@ -62,6 +62,7 @@ D:\PMCL
 ├─ Models/
 │  ├─ AccountKind.cs             # Microsoft / Offline
 │  ├─ AccountProfile.cs          # 当前账户 UI 模型
+│  ├─ ContentPackKind.cs         # 资源包 / 光影 / 数据包（目录、扩展名、Modrinth 类型）
 │  ├─ DownloadSourceKind.cs      # 官方源 / BMCLAPI 镜像
 │  ├─ GameVersion.cs             # 版本（Name/Type/ReleaseTime/IsInstalled/加载器元数据）
 │  ├─ GameVersionSettings.cs     # 每个已安装版本的启动设置
@@ -87,7 +88,12 @@ D:\PMCL
 │  ├─ ModLoaderDetector.cs       # pmcl-loader.json / 版本名加载器检测
 │  ├─ ModLoaderService.cs        # Fabric/Forge/NeoForge/OptiFine 目录与安装
 │  ├─ ModService.cs              # 版本 mods 扫描、.jar/.jar.disabled 切换、删除
-│  ├─ ModrinthService.cs         # Modrinth 搜索、兼容版本选择、依赖递归下载
+│  ├─ LocalModScanner.cs         # 读取 jar 内 fabric.mod.json / mods.toml / MANIFEST 与 SHA-1
+│  ├─ ModEnrichment.cs           # 本地模组 + Modrinth 项目/版本比对（更新、不兼容提示）
+│  ├─ ModIconCache.cs            # Modrinth 图标下载与内存缓存
+│  ├─ ContentPackService.cs      # 资源包 / 光影 / 数据包目录扫描、.disabled 切换、删除
+│  ├─ FolderLauncher.cs          # 跨平台在文件管理器中打开文件夹
+│  ├─ ModrinthService.cs         # Modrinth 搜索、兼容版本选择、依赖递归下载（模组 / 内容包）
 │  ├─ SettingsService.cs         # settings.json 读写、规范化与旧设置迁移
 │  ├─ VersionIsolationService.cs # 强制版本目录、旧共享数据导入与加载器切换数据合并
 │  └─ StoragePickerService.cs    # 文件夹 / Java / 脚本保存对话框
@@ -98,10 +104,12 @@ D:\PMCL
 │  ├─ VersionsViewModel.cs       # 版本库（搜索、选择、打开加载器选择界面）
 │  ├─ ModLoaderSelectorViewModel.cs # 共享加载器/版本选择、Java、互斥提示
 │  ├─ ModLoaderChoiceViewModel.cs   # 加载器卡片 + 版本下拉
-│  ├─ ModItemViewModel.cs        # 本地模组行（启用 / 禁用 / 删除确认）
+│  ├─ ModItemViewModel.cs        # 本地模组行（启用 / 禁用 / 删除确认 / 更新）
 │  ├─ ModrinthProjectItemViewModel.cs # Modrinth 搜索结果行与安装命令
+│  ├─ ContentPackItemViewModel.cs     # 本地内容包行（启用 / 禁用 / 删除确认）
+│  ├─ ContentPackGroupViewModel.cs    # 单一内容类型的本地列表 + Modrinth 搜索/安装
 │  ├─ AccountViewModel.cs        # 多账户列表、设备码登录、切换 / 删除 / 自动恢复
-│  ├─ VersionSettingsViewModel.cs# 版本设置页（启动参数、模组管理、Modrinth）
+│  ├─ VersionSettingsViewModel.cs# 版本设置页（启动参数、模组、内容包、Modrinth）
 │  ├─ SettingsViewModel.cs       # 全局设置页（游戏目录、语言切换）
 │  ├─ AboutViewModel.cs          # 关于页（版本、GitHub、邮箱、许可与版权）
 │  ├─ JavaRuntimeOption.cs       # Java 下拉选项（空路径 = 自动 / CmlLib 下载）
@@ -181,6 +189,8 @@ D:\PMCL
   - 版本设置页可添加 / 更换 / 移除加载器；移除只删除加载器版本并回到原版，设置会尽量写回原版。
 - **模组管理**：版本设置页的「已安装模组」扫描该版本 `mods` 目录，只列出 `.jar` 与 `.jar.disabled`；启用 / 禁用通过 `ModService.SetEnabled` 重命名，删除前在行内二次确认。刷新、搜索过滤与「显示已禁用」都在 `VersionSettingsViewModel` 内完成。
 - **Modrinth**：`ModrinthService.SearchAsync` 使用 `project_type:mod` + `versions:<Minecraft 版本>` + `categories:<fabric|forge|neoforge>` facets 搜索；安装时用 `/project/{id}/version?game_versions=...&loaders=...` 取最新兼容文件，递归下载 `dependency_type=required` 的前置（支持固定 `version_id` 与按项目重新选择兼容版本），同名文件跳过；原版与 OptiFine 不提供入口。UI 会显示安装数量、跳过数量与未解析依赖警告。
+- **内容包管理**：版本设置页的「内容包」分资源包 / 光影 / 数据包三个子页，由同一套 `ContentPackGroupViewModel` 驱动。`ContentPackService` 负责扫描 `resourcepacks`、`shaderpacks` 与 `datapacks`（数据包额外枚举 `saves/<存档>/datapacks`，只认含 `level.dat` 的存档），启用 / 禁用同样是 `name.zip` ↔ `name.zip.disabled` 重命名；数据包的安装目标可在版本根目录与各存档之间切换，UI 提示数据包按存档生效。
+- **Modrinth 内容包**：`ModrinthService.SearchContentAsync` 用 `project_type:resourcepack|shader|datapack` + `versions:<Minecraft 版本>` facets 搜索；`GetLatestContentVersionAsync` 对数据包额外加 `loaders:datapack`，避免同名项目下到模组 jar；`InstallContentProjectAsync` 保留原始 `.zip` 扩展名，同名文件跳过且不做依赖递归（内容包没有加载器前置）。图标复用 `ModIconCache`。
 - **启动游戏**：取 `GameVersionSettings` → 按 `LoginMode` 解析账户（当前账户 / Microsoft / 版本离线用户名）→ 校验 Java、内存、服务器 → 安装缺失文件 → `MinecraftService.BuildProcessAsync`（内存、窗口、JVM / 游戏参数、自动进服；`MLaunchOption.Path` 始终指向版本文件夹，启动器本身仍使用共享根，因此 libraries/assets/runtime 不重复下载）→ 执行启动前命令（Windows 用 `cmd.exe`，其他平台用 `/bin/sh`；5 分钟超时，非 0 退出码中止；工作目录与 `{gameDir}` 使用版本目录）→ 启动 Java 进程。
 - **版本设置持久化**：编辑字段后 500ms 防抖写入 `settings.json`，页面切换 / 关闭窗口 / 点击保存时立即 Flush；显示 `SaveState`。
 - **版本文件操作**：重命名会移动版本文件夹并同步 json 的 `id`、同名 jar、子版本 `inheritsFrom`，同时迁移 `versionSettings` 键；版本文件夹（含存档 / 模组）随重命名一起移动。删除会移除整个版本目录与专属设置，包括该版本私有的存档 / 截图 / 模组；共享 libraries/assets/runtime 与其它版本不受影响。
@@ -195,12 +205,13 @@ D:\PMCL
 - 新增**版本**设置：加到 `GameVersionSettings`，在 `VersionSettingsViewModel` 暴露属性、`SaveNow` 中写回模型；不要放回全局设置。
 - 版本路径相关逻辑统一走 `VersionIsolationService` / `MinecraftService.GetGameDirectory`，不要在页面里直接拼接 `.minecraft\saves`；版本始终隔离，所有页面必须使用版本目录。
 - 模组文件操作统一走 `ModService`；不要手动拼接 `.disabled` 后缀，也不要绕过 `ModService.Scan` 直接枚举目录，否则会漏掉禁用文件或把非 jar 文件当成模组。
-- Modrinth 相关逻辑统一走 `ModrinthService`；兼容性判断必须同时限定 Minecraft 版本与加载器，依赖递归要带去重集合，避免循环依赖导致无限下载。
+- 内容包文件操作统一走 `ContentPackService`（资源包 / 光影 / 数据包）；目录名与扩展名从 `ContentPackKind` 读取，数据包的安装目标必须来自 `GetTargets`，否则会写进游戏不会读取的目录。
+- Modrinth 相关逻辑统一走 `ModrinthService`；兼容性判断必须同时限定 Minecraft 版本与加载器，依赖递归要带去重集合，避免循环依赖导致无限下载。内容包用 `SearchContentAsync` / `InstallContentProjectAsync`：资源包与光影不传 `loaders`，数据包固定 `loaders:datapack`。
 - 修改 CmlLib API 用法后务必检查包版本（`dotnet list package`），不同版本的事件参数成员可能不同（例如 `ExtraJvmArguments` 需要 `MArgument`，不是裸字符串）。
 - 提交前至少运行一次 `dotnet build`，并启动程序确认主页、版本库、账户、全局设置、版本设置、关于六个页面与版本列表 / 登录流程无异常。
 - 涉及版本文件操作时，用临时游戏目录验证重命名 / 删除，至少确认 json `id`、jar 名称、`inheritsFrom` 与 `versionSettings` 键同步。
 - 修改 Microsoft 登录时注意：官方 Minecraft 客户端 ID 只支持设备码与固定 desktop 回调，不能把回调重定向到 `localhost`；只有接入自建 Entra 应用（自行注册 loopback redirect）才适合做完全无输入的浏览器回跳。
-- 修改模组管理 / Modrinth 时，Harness 已覆盖 `ModService` 的重命名/删除、facet 兼容性、依赖递归与 `VersionSettingsViewModel` 的列表/安装流程；新增网络逻辑应继续使用 `FakeModrinthHandler` 保证测试离线可重复。
+- 修改模组管理 / Modrinth 时，Harness 已覆盖 `ModService` 的重命名/删除、facet 兼容性、依赖递归与 `VersionSettingsViewModel` 的列表/安装流程；新增网络逻辑应继续使用 `FakeModrinthHandler` 保证测试离线可重复。内容包部分另覆盖了 `ContentPackService` 的目录扫描（含 `saves/<存档>/datapacks`）、`.disabled` 切换、`ContentPackGroupViewModel` 的目标切换与过滤，以及三类内容的 Modrinth 搜索/版本选择/下载扩展名。
 
 ## 9. 后续路线（Roadmap）
 

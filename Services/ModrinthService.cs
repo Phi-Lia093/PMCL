@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text;
 using System.Text.Json;
 using PMCL.Localization;
 using PMCL.Models;
@@ -71,6 +73,27 @@ public sealed record ModrinthVersion(
     public ModrinthFile? PrimaryFile =>
         Files.FirstOrDefault(file => file.Primary && !string.IsNullOrWhiteSpace(file.Url))
         ?? Files.FirstOrDefault(file => !string.IsNullOrWhiteSpace(file.Url));
+}
+
+public sealed record ModrinthProject(
+    string Id,
+    string Slug,
+    string Title,
+    string Description,
+    string IconUrl,
+    long Downloads,
+    IReadOnlyList<string> Categories,
+    IReadOnlyList<string> GameVersions,
+    IReadOnlyList<string> Loaders)
+{
+    public string DisplayTitle => string.IsNullOrWhiteSpace(Title) ? Slug : Title;
+
+    public string DisplaysText => Downloads switch
+    {
+        >= 1_000_000 => L.Format("MR.Downloads", $"{Downloads / 1_000_000d:0.0}M"),
+        >= 1_000 => L.Format("MR.Downloads", $"{Downloads / 1_000d:0.0}K"),
+        _ => L.Format("MR.Downloads", Downloads)
+    };
 }
 
 public sealed record ModInstallReport(
@@ -160,6 +183,23 @@ public sealed class ModrinthService : IDisposable
     }
 
     /// <summary>
+    /// Facets for the content searches: exact project type (resource pack,
+    /// shader or data pack) and the Minecraft version of the selected profile.
+    /// Modrinth matches data pack projects by every type they support, so a mod
+    /// that also ships a data pack still shows up in the data pack search.
+    /// </summary>
+    public static string BuildContentFacetJson(ContentPackKind kind, string minecraftVersion)
+    {
+        var facets = new List<string[]>
+        {
+            new[] { "project_type:" + kind.GetModrinthProjectType() },
+            new[] { "versions:" + minecraftVersion.Trim() }
+        };
+
+        return JsonSerializer.Serialize(facets);
+    }
+
+    /// <summary>
     /// Searches Modrinth for mods compatible with the version and loader.
     /// An empty query returns the most relevant results. The optional category
     /// uses Modrinth's own category slugs (technology, magic, utility, ...).
@@ -174,6 +214,34 @@ public sealed class ModrinthService : IDisposable
         CancellationToken cancellationToken = default)
     {
         var facets = BuildFacetJson(minecraftVersion, loaderKind, category);
+        return await SearchCoreAsync(facets, query, offset, limit, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Searches Modrinth for resource packs, shaders or data packs that support
+    /// the given Minecraft version.
+    /// </summary>
+    public async Task<ModrinthSearchResult> SearchContentAsync(
+        ContentPackKind kind,
+        string minecraftVersion,
+        string query,
+        int offset = 0,
+        int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var facets = BuildContentFacetJson(kind, minecraftVersion);
+        return await SearchCoreAsync(facets, query, offset, limit, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<ModrinthSearchResult> SearchCoreAsync(
+        string facets,
+        string? query,
+        int offset,
+        int limit,
+        CancellationToken cancellationToken)
+    {
         var url =
             $"{ApiBase}/search?query={Uri.EscapeDataString(query?.Trim() ?? string.Empty)}" +
             $"&limit={Math.Clamp(limit, 1, 50)}&offset={Math.Max(0, offset)}&index=relevance" +
@@ -262,10 +330,19 @@ public sealed class ModrinthService : IDisposable
             }
 
             progress?.Report(L.Format("MR.Downloading", version.Name));
-            if (await DownloadFileAsync(file, modsDirectory, cancellationToken).ConfigureAwait(false))
+            if (await DownloadFileAsync(
+                    file,
+                    modsDirectory,
+                    new[] { ".jar" },
+                    cancellationToken)
+                .ConfigureAwait(false))
+            {
                 installedFiles.Add(file.FileName);
+            }
             else
+            {
                 skipped++;
+            }
 
             foreach (var dependency in version.Dependencies)
             {
@@ -314,20 +391,120 @@ public sealed class ModrinthService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Fetches a single project by id or slug. Returns <c>null</c> when Modrinth
+    /// does not know the project; other HTTP failures are propagated.
+    /// </summary>
+    public async Task<ModrinthProject?> GetProjectAsync(
+        string idOrSlug,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(idOrSlug))
+            return null;
+
+        var url = $"{ApiBase}/project/{Uri.EscapeDataString(idOrSlug.Trim())}";
+        try
+        {
+            var json = await _apiClient.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
+            return ParseProject(json);
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Looks a local file up by its SHA-1 hash. Returns the version that owns
+    /// the exact file, or <c>null</c> when Modrinth has never seen it.
+    /// </summary>
+    public async Task<ModrinthVersion?> GetVersionByHashAsync(
+        string sha1,
+        CancellationToken cancellationToken = default)
+    {
+        var hash = (sha1 ?? string.Empty).Trim();
+        if (hash.Length != 40)
+            return null;
+
+        var url = $"{ApiBase}/version_file/{hash.ToLowerInvariant()}";
+        try
+        {
+            var json = await _apiClient.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
+            return ParseVersion(json);
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Finds the project whose slug or title matches <paramref name="query"/>
+    /// exactly (case and separators ignored). Used as a fallback when a local
+    /// jar carries a Modrinth project id but its hash is unknown.
+    /// </summary>
+    public async Task<ModrinthSearchHit?> FindProjectAsync(
+        string query,
+        string minecraftVersion,
+        ModLoaderKind loaderKind,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return null;
+
+        var key = NormalizeProjectKey(query);
+        if (key.Length == 0)
+            return null;
+
+        var result = await SearchAsync(
+                minecraftVersion,
+                loaderKind,
+                query.Trim(),
+                offset: 0,
+                limit: 5,
+                category: null,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Hits.FirstOrDefault(hit =>
+            string.Equals(NormalizeProjectKey(hit.Slug), key, StringComparison.Ordinal)
+            || string.Equals(NormalizeProjectKey(hit.Title), key, StringComparison.Ordinal));
+    }
+
+    private static string NormalizeProjectKey(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        var builder = new StringBuilder(value.Length);
+        foreach (var character in value)
+        {
+            if (char.IsLetterOrDigit(character))
+                builder.Append(char.ToLowerInvariant(character));
+        }
+
+        return builder.ToString();
+    }
+
     private async Task<ModrinthVersion?> GetCompatibleVersionAsync(
         string projectId,
         string minecraftVersion,
-        string loader,
+        string? loader,
         CancellationToken cancellationToken)
     {
         var gameVersions = Uri.EscapeDataString(
             JsonSerializer.Serialize(new[] { minecraftVersion }));
-        var loaders = Uri.EscapeDataString(
-            JsonSerializer.Serialize(new[] { loader }));
 
         var url =
             $"{ApiBase}/project/{Uri.EscapeDataString(projectId)}/version" +
-            $"?game_versions={gameVersions}&loaders={loaders}";
+            $"?game_versions={gameVersions}";
+
+        if (!string.IsNullOrWhiteSpace(loader))
+        {
+            var loaders = Uri.EscapeDataString(
+                JsonSerializer.Serialize(new[] { loader }));
+            url += $"&loaders={loaders}";
+        }
 
         var json = await _apiClient.GetStringAsync(url, cancellationToken).ConfigureAwait(false);
         var versions = ParseVersions(json);
@@ -335,6 +512,234 @@ public sealed class ModrinthService : IDisposable
                    IsCompatible(version, minecraftVersion, loader) && version.PrimaryFile is not null)
                ?? versions.FirstOrDefault(version =>
                    IsCompatible(version, minecraftVersion, loader));
+    }
+
+    /// <summary>
+    /// Resolves the newest file of a project that runs on the given game
+    /// version and loader. Returns <c>null</c> when nothing is compatible.
+    /// </summary>
+    public async Task<ModrinthVersion?> GetLatestCompatibleVersionAsync(
+        string projectId,
+        string minecraftVersion,
+        ModLoaderKind loaderKind,
+        CancellationToken cancellationToken = default)
+    {
+        var loader = GetLoaderName(loaderKind);
+        if (loader is null || string.IsNullOrWhiteSpace(projectId) || string.IsNullOrWhiteSpace(minecraftVersion))
+            return null;
+
+        try
+        {
+            return await GetCompatibleVersionAsync(
+                    projectId.Trim(),
+                    minecraftVersion.Trim(),
+                    loader,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Resolves the newest file of a resource pack, shader or data pack project
+    /// that runs on the given Minecraft version. Data packs are additionally
+    /// restricted to datapack files, so a project that also ships a mod jar
+    /// never installs the wrong artifact.
+    /// </summary>
+    public async Task<ModrinthVersion?> GetLatestContentVersionAsync(
+        string projectId,
+        string minecraftVersion,
+        ContentPackKind kind,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectId) || string.IsNullOrWhiteSpace(minecraftVersion))
+            return null;
+
+        try
+        {
+            return await GetCompatibleVersionAsync(
+                    projectId.Trim(),
+                    minecraftVersion.Trim(),
+                    kind.GetModrinthLoader(),
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (HttpRequestException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Installs the newest compatible file of a resource pack, shader or data
+    /// pack project into <paramref name="directory"/>. Content packs have no
+    /// loader dependency graph, so only the project itself is downloaded.
+    /// </summary>
+    public async Task<ModInstallReport> InstallContentProjectAsync(
+        ContentPackKind kind,
+        string projectId,
+        string directory,
+        string minecraftVersion,
+        IProgress<string>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(projectId))
+            throw new InvalidOperationException(L.Tr("MR.MissingProjectId"));
+
+        Directory.CreateDirectory(directory);
+
+        progress?.Report(L.Format("MR.QueryingVersions", projectId));
+        var version = await GetLatestContentVersionAsync(
+                projectId,
+                minecraftVersion,
+                kind,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (version is null)
+        {
+            throw new InvalidOperationException(
+                L.Format("MR.NoCompatibleContent", minecraftVersion, kind.ToDisplayName()));
+        }
+
+        // Some projects ship their data pack as a plugin jar. Refusing anything
+        // that is not a zip keeps the folder free of files the game ignores.
+        var file = version.PrimaryFile
+            ?? throw new InvalidOperationException(L.Format("MR.NoDownloadableFile", version.Name));
+        var extension = Path.GetExtension(Path.GetFileName(file.FileName));
+        if (extension.Length > 0
+            && !kind.GetFileExtensions().Any(candidate =>
+                candidate.Equals(extension, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new InvalidOperationException(
+                L.Format("MR.NoCompatibleContent", minecraftVersion, kind.ToDisplayName()));
+        }
+
+        progress?.Report(L.Format("MR.Downloading", version.Name));
+        var installedPath = await InstallContentVersionFileAsync(
+                kind,
+                version,
+                directory,
+                replaceFilePath: null,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return installedPath is null
+            ? new ModInstallReport(0, 1, Array.Empty<string>(), Array.Empty<string>())
+            : new ModInstallReport(
+                1,
+                0,
+                new[] { Path.GetFileName(installedPath) },
+                Array.Empty<string>());
+    }
+
+    /// <summary>
+    /// Downloads the primary file of <paramref name="version"/> into
+    /// <paramref name="modsDirectory"/>. When <paramref name="replaceFilePath"/>
+    /// points at an existing jar the old file is removed after the new one has
+    /// been downloaded, which is how in-place updates avoid a half-written mods
+    /// folder. Returns the installed path, or <c>null</c> when the target file
+    /// already exists and nothing needed replacing.
+    /// </summary>
+    public Task<string?> InstallVersionFileAsync(
+        ModrinthVersion version,
+        string directory,
+        string? replaceFilePath = null,
+        CancellationToken cancellationToken = default)
+        => InstallVersionFileCoreAsync(
+            version,
+            directory,
+            replaceFilePath,
+            new[] { ".jar" },
+            cancellationToken);
+
+    /// <summary>
+    /// Downloads the primary file of a content pack version. The archive keeps
+    /// its original extension; a download without one falls back to the first
+    /// extension the content kind accepts.
+    /// </summary>
+    public Task<string?> InstallContentVersionFileAsync(
+        ContentPackKind kind,
+        ModrinthVersion version,
+        string directory,
+        string? replaceFilePath = null,
+        CancellationToken cancellationToken = default)
+        => InstallVersionFileCoreAsync(
+            version,
+            directory,
+            replaceFilePath,
+            kind.GetFileExtensions(),
+            cancellationToken);
+
+    private async Task<string?> InstallVersionFileCoreAsync(
+        ModrinthVersion version,
+        string directory,
+        string? replaceFilePath,
+        IReadOnlyList<string> allowedExtensions,
+        CancellationToken cancellationToken)
+    {
+        var file = version.PrimaryFile
+            ?? throw new InvalidOperationException(L.Format("MR.NoDownloadableFile", version.Name));
+
+        Directory.CreateDirectory(directory);
+
+        var fileName = Path.GetFileName(file.FileName);
+        if (string.IsNullOrWhiteSpace(fileName))
+            fileName = version.ProjectId + "-" + version.VersionNumber;
+        if (!allowedExtensions.Any(extension =>
+                fileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase)))
+        {
+            fileName += allowedExtensions[0];
+        }
+
+        fileName = SanitizeFileName(fileName);
+
+        var targetPath = Path.Combine(directory, fileName);
+        var replacing = !string.IsNullOrWhiteSpace(replaceFilePath)
+                        && !string.Equals(replaceFilePath, targetPath, StringComparison.OrdinalIgnoreCase);
+
+        if (!replacing && File.Exists(targetPath))
+            return null;
+
+        var tempPath = Path.Combine(directory, "." + Guid.NewGuid().ToString("N") + ".download");
+        try
+        {
+            using var response = await _downloadClient.GetAsync(
+                    file.Url,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+
+            await using (var source = await response.Content
+                             .ReadAsStreamAsync(cancellationToken)
+                             .ConfigureAwait(false))
+            await using (var destination = File.Create(tempPath))
+            {
+                await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (replacing && File.Exists(replaceFilePath))
+                File.Delete(replaceFilePath!);
+
+            File.Move(tempPath, targetPath, overwrite: true);
+            return targetPath;
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempPath))
+                    File.Delete(tempPath);
+            }
+            catch
+            {
+                // A locked temporary file is harmless.
+            }
+        }
     }
 
     private async Task<ModrinthVersion?> GetVersionAsync(
@@ -348,17 +753,22 @@ public sealed class ModrinthService : IDisposable
 
     private async Task<bool> DownloadFileAsync(
         ModrinthFile file,
-        string modsDirectory,
+        string directory,
+        IReadOnlyList<string> allowedExtensions,
         CancellationToken cancellationToken)
     {
         var fileName = Path.GetFileName(file.FileName);
         if (string.IsNullOrWhiteSpace(fileName))
-            fileName = "mod-" + Guid.NewGuid().ToString("N") + ".jar";
-        if (!fileName.EndsWith(".jar", StringComparison.OrdinalIgnoreCase))
-            fileName += ".jar";
+            fileName = "content-" + Guid.NewGuid().ToString("N");
+        if (!allowedExtensions.Any(extension =>
+                fileName.EndsWith(extension, StringComparison.OrdinalIgnoreCase)))
+        {
+            fileName += allowedExtensions[0];
+        }
+
         fileName = SanitizeFileName(fileName);
 
-        var targetPath = Path.Combine(modsDirectory, fileName);
+        var targetPath = Path.Combine(directory, fileName);
         if (File.Exists(targetPath))
             return false;
 
@@ -402,10 +812,11 @@ public sealed class ModrinthService : IDisposable
         }
     }
 
-    internal static bool IsCompatible(ModrinthVersion version, string minecraftVersion, string loader)
+    internal static bool IsCompatible(ModrinthVersion version, string minecraftVersion, string? loader)
         => (version.GameVersions.Count == 0
             || version.GameVersions.Contains(minecraftVersion, StringComparer.OrdinalIgnoreCase))
-           && (version.Loaders.Count == 0
+           && (string.IsNullOrWhiteSpace(loader)
+               || version.Loaders.Count == 0
                || version.Loaders.Contains(loader, StringComparer.OrdinalIgnoreCase));
 
     private static string SanitizeFileName(string fileName)
@@ -548,6 +959,36 @@ public sealed class ModrinthService : IDisposable
             GetStringArray(element, "loaders"),
             files,
             dependencies);
+    }
+
+    private static ModrinthProject? ParseProject(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+                return null;
+
+            var id = GetString(root, "id");
+            if (id.Length == 0)
+                return null;
+
+            return new ModrinthProject(
+                id,
+                GetString(root, "slug"),
+                GetString(root, "title"),
+                GetString(root, "description"),
+                GetString(root, "icon_url"),
+                GetInt64(root, "downloads"),
+                GetStringArray(root, "categories"),
+                GetStringArray(root, "game_versions"),
+                GetStringArray(root, "loaders"));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static string GetString(JsonElement element, string propertyName)

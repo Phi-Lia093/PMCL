@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PMCL.Localization;
@@ -14,6 +13,7 @@ public enum VersionSettingsSection
     Settings,
     Mods,
     ModDownloads,
+    ContentPacks,
     Advanced
 }
 
@@ -37,13 +37,30 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     private readonly JavaRuntimeService _javaRuntimes;
     private readonly ModService _modService;
     private readonly ModrinthService _modrinthService;
+    private readonly ContentPackService _contentPackService = new();
     private readonly Func<Task> _refreshVersionsAsync;
     private readonly Action _goBack;
     private readonly List<LocalModInfo> _allMods = new();
+    private readonly LocalModScanner _modScanner = new();
+    private readonly ModIconCache _iconCache = new();
+    private readonly Dictionary<string, LocalModMetadata?> _modMetadataCache =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _modHashes =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ModEnrichment> _modEnrichmentCache =
+        new(StringComparer.OrdinalIgnoreCase);
+    // Hashes Modrinth could not resolve (unknown file and no exact project match)
+    // are remembered so re-filtering the list never re-queries them again.
+    private readonly HashSet<string> _modEnrichmentMisses =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _selectedModPaths =
+        new(StringComparer.OrdinalIgnoreCase);
 
     private GameVersion? _version;
     private GameVersionSettings _model = new();
     private CancellationTokenSource? _saveDebounce;
+    private CancellationTokenSource? _modScanCts;
+    private int _modScanGeneration;
     private bool _loading;
     private bool _syncingJavaSelection;
     private VersionSettingsSection _selectedSection = VersionSettingsSection.Settings;
@@ -77,7 +94,28 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             minecraft,
             picker,
             javaRuntimes);
+
+        ContentPackGroups = new[]
+        {
+            CreateContentPackGroup(ContentPackKind.ResourcePack),
+            CreateContentPackGroup(ContentPackKind.ShaderPack),
+            CreateContentPackGroup(ContentPackKind.DataPack)
+        };
+        ActiveContentGroup = ContentPackGroups[0];
     }
+
+    private ContentPackGroupViewModel CreateContentPackGroup(ContentPackKind kind)
+        => new(
+            kind,
+            _contentPackService,
+            _modrinthService,
+            _iconCache,
+            _picker,
+            _session,
+            () => _version,
+            () => GameDirectory);
+
+    public IReadOnlyList<ContentPackGroupViewModel> ContentPackGroups { get; }
 
     public LauncherSession Session { get; }
 
@@ -208,8 +246,14 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             OnPropertyChanged(nameof(IsSettingsSection));
             OnPropertyChanged(nameof(IsModsSection));
             OnPropertyChanged(nameof(IsModDownloadsSection));
+            OnPropertyChanged(nameof(IsContentSection));
             OnPropertyChanged(nameof(IsAdvancedSection));
             OnPropertyChanged(nameof(IsModLoaderCardVisible));
+
+            if (value == VersionSettingsSection.Mods)
+                QueueModScan();
+            else if (value == VersionSettingsSection.ContentPacks)
+                ActiveContentGroup?.Reload();
         }
     }
 
@@ -219,7 +263,44 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
     public bool IsModDownloadsSection => SelectedSection == VersionSettingsSection.ModDownloads;
 
+    public bool IsContentSection => SelectedSection == VersionSettingsSection.ContentPacks;
+
     public bool IsAdvancedSection => SelectedSection == VersionSettingsSection.Advanced;
+
+    [ObservableProperty]
+    public partial int SelectedContentPackKindIndex { get; set; }
+
+    [ObservableProperty]
+    public partial ContentPackGroupViewModel? ActiveContentGroup { get; set; }
+
+    public bool IsResourcePacksSelected => SelectedContentPackKindIndex == 0;
+
+    public bool IsShaderPacksSelected => SelectedContentPackKindIndex == 1;
+
+    public bool IsDataPacksSelected => SelectedContentPackKindIndex == 2;
+
+    // The generated hook keeps the sub-tab buttons and the visible group in
+    // sync; the groups themselves cache their folders until the version changes.
+    partial void OnSelectedContentPackKindIndexChanged(int value)
+    {
+        OnPropertyChanged(nameof(IsResourcePacksSelected));
+        OnPropertyChanged(nameof(IsShaderPacksSelected));
+        OnPropertyChanged(nameof(IsDataPacksSelected));
+
+        ActiveContentGroup = ContentPackGroups.Count == 0
+            ? null
+            : ContentPackGroups[Math.Clamp(value, 0, ContentPackGroups.Count - 1)];
+    }
+
+    [RelayCommand]
+    private void SelectContentPackKind(string? kindIndex)
+    {
+        if (!int.TryParse(kindIndex, out var index))
+            return;
+
+        SelectedContentPackKindIndex = index;
+        ActiveContentGroup?.Reload();
+    }
 
     [ObservableProperty]
     public partial int SelectedModrinthCategoryIndex { get; set; }
@@ -343,6 +424,34 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     public partial bool IsModrinthInstalling { get; set; }
 
     [ObservableProperty]
+    public partial bool IsModEnriching { get; set; }
+
+    [ObservableProperty]
+    public partial string ModUpdateStatusText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool IsBatchDeleteConfirmVisible { get; set; }
+
+    public bool HasModUpdateStatus => ModUpdateStatusText.Length > 0;
+
+    public int SelectedModCount => LocalMods.Count(mod => mod.IsSelected);
+
+    public bool HasSelectedMods => SelectedModCount > 0;
+
+    public string SelectedModsText => L.Format("VS.Mods.SelectedCount", SelectedModCount);
+
+    public bool CanSelectAllMods => LocalMods.Count > 0;
+
+    public string SelectAllModsLabel => LocalMods.Count > 0 && SelectedModCount >= LocalMods.Count
+        ? L.Tr("VS.Mods.ClearSelection")
+        : L.Tr("VS.Mods.SelectAll");
+
+    public bool HasAnyModUpdates => LocalMods.Any(mod => mod.HasUpdate);
+
+    /// <summary>Batch update is only meaningful when a selected jar has a newer file.</summary>
+    public bool CanUpdateSelectedMods => LocalMods.Any(mod => mod.IsSelected && mod.HasUpdate);
+
+    [ObservableProperty]
     public partial bool IsDeleteConfirmVisible { get; set; }
 
     [ObservableProperty]
@@ -411,6 +520,11 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(ModrinthCompatibilityText));
         OnPropertyChanged(nameof(CanUseModrinth));
         ReloadLocalMods();
+
+        SelectedContentPackKindIndex = 0;
+        ActiveContentGroup = ContentPackGroups.Count == 0 ? null : ContentPackGroups[0];
+        foreach (var group in ContentPackGroups)
+            group.SyncVersion();
     }
 
     public void Flush()
@@ -627,13 +741,20 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             }
 
             ModrinthResults.Clear();
+            var items = new List<ModrinthProjectItemViewModel>(result.Hits.Count);
             foreach (var hit in result.Hits)
-                ModrinthResults.Add(new ModrinthProjectItemViewModel(hit, InstallModrinthProjectAsync));
+            {
+                var item = new ModrinthProjectItemViewModel(hit, InstallModrinthProjectAsync);
+                items.Add(item);
+                ModrinthResults.Add(item);
+            }
 
             ModrinthStatusText = result.Hits.Count == 0
                 ? L.Tr("VS.Modrinth.NoResults")
                 : L.Format("VS.Modrinth.Results", result.TotalHits, result.Hits.Count);
             Session.SetStatus(ModrinthStatusText);
+
+            _ = LoadModrinthIconsAsync(items);
         }
         catch (Exception ex)
         {
@@ -644,6 +765,30 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         {
             IsModrinthSearching = false;
         }
+    }
+
+    /// <summary>
+    /// Fills in the project icons of the current search results. Runs after the
+    /// list is already visible so a slow image never delays the search, and it
+    /// stops as soon as another search replaces the result set.
+    /// </summary>
+    private async Task LoadModrinthIconsAsync(IReadOnlyList<ModrinthProjectItemViewModel> items)
+    {
+        var loads = items.Select(async item =>
+        {
+            try
+            {
+                var icon = await _iconCache.GetAsync(item.Project.IconUrl).ConfigureAwait(true);
+                if (icon is not null && ModrinthResults.Contains(item))
+                    item.Icon = icon;
+            }
+            catch (Exception)
+            {
+                // A missing icon simply keeps the letter placeholder.
+            }
+        });
+
+        await Task.WhenAll(loads).ConfigureAwait(true);
     }
 
     private async Task InstallModrinthProjectAsync(ModrinthProjectItemViewModel item)
@@ -724,6 +869,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         try
         {
             var name = item.DisplayName;
+            _selectedModPaths.Remove(item.FilePath);
             await Task.Run(() => _modService.Delete(item.Info));
             ReloadLocalMods();
             Session.SetStatus(L.Format("VS.Mod.Deleted", name));
@@ -734,9 +880,243 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         }
     }
 
+    private async Task UpdateModAsync(ModItemViewModel item)
+    {
+        if (_version is null || Session.IsBusy || item.IsUpdating)
+            return;
+
+        var latest = item.Enrichment?.LatestVersion;
+        if (latest is null)
+            return;
+
+        item.IsUpdating = true;
+        Session.BeginBusy(L.Format("VS.Mods.UpdatingOne", item.DisplayName));
+        try
+        {
+            var installedPath = await _modrinthService.InstallVersionFileAsync(
+                latest,
+                ModsDirectory,
+                item.FilePath);
+
+            ReloadLocalMods();
+            Session.SetStatus(installedPath is null
+                ? L.Format("VS.Mods.UpdateSkipped", item.DisplayName)
+                : L.Format("VS.Mods.UpdatedOne", item.DisplayName, latest.VersionNumber));
+        }
+        catch (Exception ex)
+        {
+            Session.SetError(L.Format("VS.Mods.UpdateFailed", item.DisplayName, ex.Message));
+        }
+        finally
+        {
+            Session.EndBusy();
+            item.IsUpdating = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task UpdateSelectedModsAsync()
+    {
+        if (_version is null || Session.IsBusy)
+            return;
+
+        var targets = LocalMods
+            .Where(mod => mod.IsSelected && mod.HasUpdate)
+            .ToList();
+
+        if (targets.Count == 0)
+        {
+            Session.SetStatus(L.Tr("VS.Mods.NoSelectedUpdates"));
+            return;
+        }
+
+        Session.BeginBusy(L.Tr("VS.Mods.Updating"));
+        var updated = 0;
+        string? firstError = null;
+        foreach (var target in targets)
+            target.IsUpdating = true;
+
+        try
+        {
+            for (var index = 0; index < targets.Count; index++)
+            {
+                var latest = targets[index].Enrichment?.LatestVersion;
+                if (latest is null)
+                    continue;
+
+                Session.SetStatus(L.Format("VS.Mods.UpdatingMany", index + 1, targets.Count));
+                try
+                {
+                    var installedPath = await _modrinthService.InstallVersionFileAsync(
+                        latest,
+                        ModsDirectory,
+                        targets[index].FilePath);
+                    if (installedPath is not null)
+                        updated++;
+                }
+                catch (Exception ex)
+                {
+                    firstError ??= ex.Message;
+                }
+            }
+        }
+        finally
+        {
+            foreach (var target in targets)
+                target.IsUpdating = false;
+
+            Session.EndBusy();
+        }
+
+        ReloadLocalMods();
+        Session.SetStatus(L.Format("VS.Mods.UpdatedMany", updated));
+        if (firstError is not null)
+            Session.SetError(L.Format("VS.Mods.BatchUpdateFailed", firstError));
+    }
+
+    [RelayCommand]
+    private void ToggleSelectAllMods()
+    {
+        var selectAll = LocalMods.Count > 0 && LocalMods.Any(mod => !mod.IsSelected);
+        foreach (var mod in LocalMods)
+            mod.IsSelected = selectAll;
+
+        UpdateSelectionState();
+    }
+
+    [RelayCommand]
+    private void RequestDeleteSelectedMods() => IsBatchDeleteConfirmVisible = HasSelectedMods;
+
+    [RelayCommand]
+    private void CancelDeleteSelectedMods() => IsBatchDeleteConfirmVisible = false;
+
+    [RelayCommand]
+    private async Task ConfirmDeleteSelectedModsAsync()
+    {
+        if (Session.IsBusy)
+            return;
+
+        var targets = LocalMods
+            .Where(mod => mod.IsSelected)
+            .Select(mod => mod.Info)
+            .ToList();
+
+        IsBatchDeleteConfirmVisible = false;
+        if (targets.Count == 0)
+            return;
+
+        Session.BeginBusy(L.Format("VS.Mods.DeletingMany", targets.Count));
+        var deleted = 0;
+        string? firstError = null;
+        try
+        {
+            foreach (var info in targets)
+            {
+                try
+                {
+                    await Task.Run(() => _modService.Delete(info));
+                    _selectedModPaths.Remove(info.FilePath);
+                    deleted++;
+                }
+                catch (Exception ex)
+                {
+                    firstError ??= ex.Message;
+                }
+            }
+        }
+        finally
+        {
+            Session.EndBusy();
+        }
+
+        ReloadLocalMods();
+        Session.SetStatus(L.Format("VS.Mods.DeletedMany", deleted));
+        if (firstError is not null)
+            Session.SetError(L.Format("VS.Mod.DeleteFailed", firstError));
+    }
+
+    [RelayCommand]
+    private async Task InstallFromLocalAsync()
+    {
+        if (_version is null || Session.IsBusy)
+            return;
+
+        if (!_version.IsInstalled)
+        {
+            Session.SetError(L.Tr("VS.LocalMods.NotInstalled"));
+            return;
+        }
+
+        var files = await _picker.PickModFilesAsync(L.Tr("VS.Mods.PickLocalTitle"));
+        if (files.Count == 0)
+            return;
+
+        var modsDirectory = ModsDirectory;
+        var installed = 0;
+        var skipped = 0;
+        string? firstError = null;
+
+        Session.BeginBusy(L.Tr("VS.Mods.ImportingLocal"));
+        try
+        {
+            foreach (var sourcePath in files)
+            {
+                try
+                {
+                    var fileName = Path.GetFileName(sourcePath);
+                    var destination = Path.Combine(modsDirectory, fileName);
+                    if (string.Equals(destination, sourcePath, StringComparison.OrdinalIgnoreCase)
+                        || File.Exists(destination))
+                    {
+                        skipped++;
+                        continue;
+                    }
+
+                    Directory.CreateDirectory(modsDirectory);
+                    await Task.Run(() => File.Copy(sourcePath, destination));
+                    installed++;
+                }
+                catch (Exception ex)
+                {
+                    firstError ??= ex.Message;
+                }
+            }
+        }
+        finally
+        {
+            Session.EndBusy();
+        }
+
+        ReloadLocalMods();
+        Session.SetStatus(L.Format("VS.Mods.LocalImported", installed, skipped));
+        if (firstError is not null)
+            Session.SetError(L.Format("VS.Mods.LocalImportFailed", firstError));
+    }
+
+    [RelayCommand]
+    private void OpenModDownloads()
+    {
+        if (_version is null)
+            return;
+
+        if (!CanUseModrinth)
+        {
+            Session.SetError(L.Tr("VS.Modrinth.Unsupported"));
+            return;
+        }
+
+        SelectedSection = VersionSettingsSection.ModDownloads;
+        if (ModrinthResults.Count == 0)
+            ModrinthStatusText = L.Tr("VS.Modrinth.Hint");
+    }
+
     private void ReloadLocalMods()
     {
         _allMods.Clear();
+        CancelModScan();
+        _modMetadataCache.Clear();
+        _modHashes.Clear();
+        _modEnrichmentMisses.Clear();
 
         if (_version is { IsInstalled: true })
         {
@@ -752,6 +1132,9 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             }
         }
 
+        _selectedModPaths.RemoveWhere(path => !_allMods.Any(info =>
+            string.Equals(info.FilePath, path, StringComparison.OrdinalIgnoreCase)));
+
         RebuildLocalMods();
     }
 
@@ -759,20 +1142,29 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     {
         LocalMods.Clear();
         var filter = LocalModSearchText?.Trim() ?? string.Empty;
+        var loader = _version?.LoaderKind;
+        var gameVersion = _version?.BaseVersionName;
 
         foreach (var info in _allMods)
         {
             if (!ShowDisabledMods && !info.IsEnabled)
                 continue;
 
-            if (filter.Length > 0
-                && !info.DisplayName.Contains(filter, StringComparison.OrdinalIgnoreCase)
-                && !info.FileName.Contains(filter, StringComparison.OrdinalIgnoreCase))
-            {
+            _modMetadataCache.TryGetValue(info.FilePath, out var metadata);
+            if (filter.Length > 0 && !MatchesModFilter(info, metadata, filter))
                 continue;
-            }
 
-            LocalMods.Add(new ModItemViewModel(info, ToggleModAsync, DeleteModAsync));
+            LocalMods.Add(new ModItemViewModel(
+                info,
+                metadata,
+                loader,
+                gameVersion,
+                FindEnrichment(info.FilePath),
+                ToggleModAsync,
+                DeleteModAsync,
+                UpdateModAsync,
+                OnModSelectionChanged,
+                _selectedModPaths.Contains(info.FilePath)));
         }
 
         var enabled = _allMods.Count(info => info.IsEnabled);
@@ -787,6 +1179,9 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
         OnPropertyChanged(nameof(HasLocalMods));
         OnPropertyChanged(nameof(HasNoLocalMods));
+        OnPropertyChanged(nameof(HasAnyModUpdates));
+        UpdateSelectionState();
+        QueueModScan();
     }
 
     [RelayCommand]
@@ -1091,19 +1486,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     {
         try
         {
-            if (create)
-                Directory.CreateDirectory(path);
-
-            if (!Directory.Exists(path))
-                throw new DirectoryNotFoundException(L.Format("VS.Folder.NotFound", path));
-
-            var startInfo = OperatingSystem.IsWindows()
-                ? new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true }
-                : OperatingSystem.IsMacOS()
-                    ? new ProcessStartInfo("open", $"\"{path}\"") { UseShellExecute = true }
-                    : new ProcessStartInfo("xdg-open", $"\"{path}\"") { UseShellExecute = true };
-
-            Process.Start(startInfo);
+            FolderLauncher.Open(path, create);
             Session.SetStatus(L.Format("VS.Folder.Opened", path));
         }
         catch (Exception ex)
@@ -1182,6 +1565,379 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
                 "Java.LastScan",
                 lastScannedAt.Value.LocalDateTime.ToString("g"),
                 _javaRuntimes.CachedRuntimes.Count);
+    }
+
+    private static bool MatchesModFilter(LocalModInfo info, LocalModMetadata? metadata, string filter)
+    {
+        if (info.DisplayName.Contains(filter, StringComparison.OrdinalIgnoreCase)
+            || info.FileName.Contains(filter, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return metadata is not null
+               && (Contains(metadata.Name, filter)
+                   || Contains(metadata.ModId, filter)
+                   || Contains(metadata.AuthorText, filter));
+
+        static bool Contains(string? value, string filter) =>
+            value is not null && value.Contains(filter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string BuildEnrichmentKey(
+        string hash,
+        ModLoaderKind loaderKind,
+        string? gameVersion) =>
+        $"{hash}|{loaderKind}|{gameVersion}";
+
+    private ModEnrichment? FindEnrichment(string filePath)
+    {
+        if (_version is null || !_modHashes.TryGetValue(filePath, out var hash))
+            return null;
+
+        return _modEnrichmentCache.GetValueOrDefault(
+            BuildEnrichmentKey(hash, _version.LoaderKind, _version.BaseVersionName));
+    }
+
+    private void RememberEnrichment(string key, ModEnrichment enrichment)
+    {
+        if (_modEnrichmentCache.Count > 256)
+            _modEnrichmentCache.Clear();
+
+        _modEnrichmentCache[key] = enrichment;
+    }
+
+    private void OnModSelectionChanged(ModItemViewModel item)
+    {
+        if (item.IsSelected)
+            _selectedModPaths.Add(item.FilePath);
+        else
+            _selectedModPaths.Remove(item.FilePath);
+
+        UpdateSelectionState();
+    }
+
+    private void UpdateSelectionState()
+    {
+        OnPropertyChanged(nameof(SelectedModCount));
+        OnPropertyChanged(nameof(HasSelectedMods));
+        OnPropertyChanged(nameof(SelectedModsText));
+        OnPropertyChanged(nameof(CanSelectAllMods));
+        OnPropertyChanged(nameof(SelectAllModsLabel));
+        OnPropertyChanged(nameof(CanUpdateSelectedMods));
+    }
+
+    private async Task<ModEnrichment?> BuildEnrichmentAsync(
+        string filePath,
+        string hash,
+        string gameVersion,
+        ModLoaderKind loaderKind,
+        CancellationToken token)
+    {
+        var metadata = _modMetadataCache.GetValueOrDefault(filePath);
+        var installed = await _modrinthService.GetVersionByHashAsync(hash, token)
+            .ConfigureAwait(true);
+        ModrinthProject? project = null;
+        ModrinthVersion? latest = null;
+        var author = string.Empty;
+
+        if (installed is not null)
+        {
+            project = await _modrinthService.GetProjectAsync(installed.ProjectId, token)
+                .ConfigureAwait(true);
+            latest = await _modrinthService.GetLatestCompatibleVersionAsync(
+                    installed.ProjectId,
+                    gameVersion,
+                    loaderKind,
+                    token)
+                .ConfigureAwait(true);
+        }
+        else
+        {
+            var query = !string.IsNullOrWhiteSpace(metadata?.ModId)
+                ? metadata!.ModId
+                : metadata?.Name ?? string.Empty;
+
+            var hit = await _modrinthService.FindProjectAsync(query, gameVersion, loaderKind, token)
+                .ConfigureAwait(true);
+
+            if (hit is not null)
+            {
+                author = hit.Author;
+                project = await _modrinthService.GetProjectAsync(hit.ProjectId, token)
+                    .ConfigureAwait(true);
+                latest = await _modrinthService.GetLatestCompatibleVersionAsync(
+                        hit.ProjectId,
+                        gameVersion,
+                        loaderKind,
+                        token)
+                    .ConfigureAwait(true);
+            }
+        }
+
+        if (project is null && latest is null)
+            return null;
+
+        // The installed jar is itself the newest compatible build when Modrinth
+        // reports no separate match for this profile; never warn in that case.
+        if (latest is null && installed is not null && IsCompatibleWith(installed, gameVersion, loaderKind))
+            latest = installed;
+
+        var icon = await _iconCache.GetAsync(project?.IconUrl, token).ConfigureAwait(true);
+        return new ModEnrichment(project, installed, latest, UpdatesChecked: true, author, icon);
+    }
+
+    private static bool IsCompatibleWith(
+        ModrinthVersion version,
+        string gameVersion,
+        ModLoaderKind loaderKind)
+    {
+        var loaderName = ModrinthService.GetLoaderName(loaderKind);
+        if (loaderName is null)
+            return false;
+
+        var matchesGameVersion = version.GameVersions.Any(value =>
+            string.Equals(value, gameVersion, StringComparison.OrdinalIgnoreCase));
+        var matchesLoader = version.Loaders.Any(value =>
+            string.Equals(value, loaderName, StringComparison.OrdinalIgnoreCase));
+
+        return matchesGameVersion && matchesLoader;
+    }
+
+    private void ApplyMetadataToVisible(string filePath, LocalModMetadata? metadata)
+    {
+        foreach (var mod in LocalMods)
+        {
+            if (string.Equals(mod.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                mod.ApplyMetadata(metadata);
+        }
+    }
+
+    private void ApplyEnrichmentToVisible(string filePath, ModEnrichment enrichment)
+    {
+        foreach (var mod in LocalMods)
+        {
+            if (string.Equals(mod.FilePath, filePath, StringComparison.OrdinalIgnoreCase))
+                mod.ApplyEnrichment(enrichment);
+        }
+
+        OnPropertyChanged(nameof(HasAnyModUpdates));
+        OnPropertyChanged(nameof(CanUpdateSelectedMods));
+    }
+
+    private void RefreshModUpdateStatus(int failed = 0)
+    {
+        if (_version is not { IsInstalled: true })
+        {
+            ModUpdateStatusText = string.Empty;
+            return;
+        }
+
+        if (!CanUseModrinth)
+        {
+            ModUpdateStatusText = L.Tr("VS.Mods.EnrichUnsupported");
+            return;
+        }
+
+        var updates = LocalMods.Count(mod => mod.HasUpdate);
+        var text = updates > 0
+            ? L.Format("VS.Mods.UpdatesFound", updates)
+            : failed > 0
+                ? L.Format("VS.Mods.EnrichPartial", failed)
+                : L.Tr("VS.Mods.AllUpToDate");
+
+        if (updates > 0 && failed > 0)
+            text += " " + L.Format("VS.Mods.EnrichPartial", failed);
+
+        ModUpdateStatusText = text;
+        OnPropertyChanged(nameof(HasAnyModUpdates));
+    }
+
+    private void CancelModScan()
+    {
+        _modScanGeneration++;
+        _modScanCts?.Cancel();
+        _modScanCts?.Dispose();
+        _modScanCts = null;
+        IsModEnriching = false;
+    }
+
+    /// <summary>
+    /// Starts a background pass over the visible mods: jar metadata first (local
+    /// I/O), then the Modrinth lookup. Every call supersedes the previous pass so
+    /// typing in the filter never stacks overlapping scans.
+    /// </summary>
+    private void QueueModScan()
+    {
+        if (_version is not { IsInstalled: true })
+        {
+            ModUpdateStatusText = string.Empty;
+            return;
+        }
+
+        CancelModScan();
+        var cts = new CancellationTokenSource();
+        _modScanCts = cts;
+        var generation = _modScanGeneration;
+        _ = ScanModsAsync(generation, cts.Token);
+    }
+
+    private async Task ScanModsAsync(int generation, CancellationToken token)
+    {
+        try
+        {
+            var pending = LocalMods
+                .Select(mod => mod.FilePath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(path => !_modMetadataCache.ContainsKey(path))
+                .ToList();
+
+            foreach (var path in pending)
+            {
+                if (token.IsCancellationRequested || generation != _modScanGeneration)
+                    return;
+
+                LocalModMetadata? metadata = null;
+                string hash = string.Empty;
+                try
+                {
+                    metadata = await Task.Run(() => _modScanner.ReadMetadata(path), token)
+                        .ConfigureAwait(true);
+                    hash = await Task.Run(() => _modScanner.ComputeSha1(path), token)
+                        .ConfigureAwait(true);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch
+                {
+                    // A locked or corrupt jar simply stays without enriched info.
+                    metadata = null;
+                    hash = string.Empty;
+                }
+
+                if (generation != _modScanGeneration)
+                    return;
+
+                _modMetadataCache[path] = metadata;
+                if (hash.Length > 0)
+                {
+                    _modHashes[path] = hash;
+                    if (FindEnrichment(path) is { } cachedEnrichment)
+                        ApplyEnrichmentToVisible(path, cachedEnrichment);
+                }
+
+                ApplyMetadataToVisible(path, metadata);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        if (generation != _modScanGeneration)
+            return;
+
+        await EnrichModsAsync(generation, token).ConfigureAwait(true);
+    }
+
+    private async Task EnrichModsAsync(int generation, CancellationToken token)
+    {
+        var version = _version;
+        if (version is not { IsInstalled: true, IsModded: true } || !CanUseModrinth)
+        {
+            ModUpdateStatusText = string.Empty;
+            return;
+        }
+
+        var mcVersion = version.BaseVersionName;
+        var loaderKind = version.LoaderKind;
+
+        var pending = LocalMods
+            .Where(mod => mod.Enrichment is null)
+            .Select(mod => mod.FilePath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(path => _modHashes.ContainsKey(path))
+            .ToList();
+
+        if (pending.Count == 0)
+        {
+            RefreshModUpdateStatus();
+            return;
+        }
+
+        IsModEnriching = true;
+        ModUpdateStatusText = L.Tr("VS.Mods.CheckingUpdates");
+        var failed = 0;
+        try
+        {
+            foreach (var path in pending)
+            {
+                if (token.IsCancellationRequested || generation != _modScanGeneration)
+                    return;
+
+                var key = BuildEnrichmentKey(_modHashes[path], loaderKind, mcVersion);
+                if (_modEnrichmentCache.TryGetValue(key, out var cached))
+                {
+                    ApplyEnrichmentToVisible(path, cached);
+                    continue;
+                }
+
+                // Modrinth has no data for this file: keep the local metadata and
+                // never spend another request on the same hash.
+                if (_modEnrichmentMisses.Contains(key))
+                {
+                    failed++;
+                    continue;
+                }
+
+                ModEnrichment? enrichment;
+                try
+                {
+                    enrichment = await BuildEnrichmentAsync(
+                            path,
+                            _modHashes[path],
+                            mcVersion,
+                            loaderKind,
+                            token)
+                        .ConfigureAwait(true);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch
+                {
+                    failed++;
+                    continue;
+                }
+
+                if (token.IsCancellationRequested || generation != _modScanGeneration)
+                    return;
+
+                if (enrichment is null)
+                {
+                    if (_modEnrichmentMisses.Count > 512)
+                        _modEnrichmentMisses.Clear();
+
+                    _modEnrichmentMisses.Add(key);
+                    failed++;
+                    continue;
+                }
+
+                RememberEnrichment(key, enrichment);
+                ApplyEnrichmentToVisible(path, enrichment);
+            }
+        }
+        finally
+        {
+            if (generation == _modScanGeneration)
+            {
+                IsModEnriching = false;
+                RefreshModUpdateStatus(failed);
+            }
+        }
     }
 
     private void NotifyVersionDerived()
@@ -1272,6 +2028,9 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     partial void OnLocalModSearchTextChanged(string value) => RebuildLocalMods();
 
     partial void OnShowDisabledModsChanged(bool value) => RebuildLocalMods();
+
+    partial void OnModUpdateStatusTextChanged(string value)
+        => OnPropertyChanged(nameof(HasModUpdateStatus));
 
     partial void OnIsModrinthSearchingChanged(bool value)
     {

@@ -1,3 +1,4 @@
+using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PMCL.Localization;
@@ -37,7 +38,23 @@ public sealed partial class ModrinthProjectItemViewModel : ViewModelBase
         ? L.Tr("Modrinth.Uncategorized")
         : string.Join(" · ", Project.Categories.Take(3));
 
+    public string IconInitial
+    {
+        get
+        {
+            var title = Title.Trim();
+            return title.Length == 0 ? "?" : char.ToUpperInvariant(title[0]).ToString();
+        }
+    }
+
     public IAsyncRelayCommand InstallCommand { get; }
+
+    [ObservableProperty]
+    public partial Bitmap? Icon { get; set; }
+
+    public bool HasIcon => Icon is not null;
+
+    partial void OnIconChanged(Bitmap? value) => OnPropertyChanged(nameof(HasIcon));
 
     [ObservableProperty]
     public partial bool IsInstalling { get; set; }

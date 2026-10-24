@@ -53,6 +53,66 @@ public sealed class StoragePickerService
         return files.Count > 0 ? files[0].TryGetLocalPath() : null;
     }
 
+    public async Task<IReadOnlyList<string>> PickModFilesAsync(string title)
+    {
+        return await PickArchiveFilesAsync(
+                title,
+                L.Tr("Storage.ModArchive"),
+                new[] { "*.jar" })
+            .ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Picks resource pack, shader or data pack archives. The accepted patterns
+    /// come from the content kind so a data pack picker also allows jars.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> PickContentPackFilesAsync(
+        string title,
+        IReadOnlyList<string> patterns)
+    {
+        return await PickArchiveFilesAsync(
+                title,
+                L.Tr("Storage.ContentArchive"),
+                patterns)
+            .ConfigureAwait(true);
+    }
+
+    private async Task<IReadOnlyList<string>> PickArchiveFilesAsync(
+        string title,
+        string fileTypeName,
+        IReadOnlyList<string> patterns)
+    {
+        var window = _windowProvider();
+        if (window?.StorageProvider is not { CanOpen: true } storage)
+            return Array.Empty<string>();
+
+        var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = title,
+            AllowMultiple = true,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType(fileTypeName)
+                {
+                    Patterns = patterns.ToArray()
+                }
+            }
+        });
+
+        if (files.Count == 0)
+            return Array.Empty<string>();
+
+        var paths = new List<string>(files.Count);
+        foreach (var file in files)
+        {
+            var path = file.TryGetLocalPath();
+            if (!string.IsNullOrWhiteSpace(path))
+                paths.Add(path);
+        }
+
+        return paths;
+    }
+
     public async Task<string?> PickSaveFileAsync(
         string title,
         string suggestedFileName,
