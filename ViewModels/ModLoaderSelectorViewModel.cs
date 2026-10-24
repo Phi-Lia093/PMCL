@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PMCL.Localization;
 using PMCL.Models;
 using PMCL.Services;
 
@@ -47,13 +48,13 @@ public sealed partial class ModLoaderSelectorViewModel : ViewModelBase
     public partial bool IsInstalling { get; set; }
 
     [ObservableProperty]
-    public partial string Title { get; set; } = "选择模组加载器";
+    public partial string Title { get; set; } = L.Tr("Loader.Title");
 
     [ObservableProperty]
     public partial string Subtitle { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string LoadingText { get; set; } = "正在获取可用加载器版本...";
+    public partial string LoadingText { get; set; } = L.Tr("Loader.Loading");
 
     [ObservableProperty]
     public partial string ErrorMessage { get; set; } = string.Empty;
@@ -62,7 +63,7 @@ public sealed partial class ModLoaderSelectorViewModel : ViewModelBase
     public partial string JavaPath { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string DetectedJavaText { get; set; } = "未检测到 Java，请手动选择。";
+    public partial string DetectedJavaText { get; set; } = L.Tr("Loader.NoJava");
 
     [ObservableProperty]
     public partial string ExistingLoaderText { get; set; } = string.Empty;
@@ -82,15 +83,17 @@ public sealed partial class ModLoaderSelectorViewModel : ViewModelBase
         ModLoaderKind.Forge or ModLoaderKind.NeoForge or ModLoaderKind.OptiFine;
 
     public string JavaRequirementText => SelectedLoaderNeedsJava
-        ? "Forge / NeoForge / OptiFine 安装器需要 Java；留空时优先使用该 Minecraft 版本对应的 Java，找不到再回退到系统 Java。"
-        : "Fabric 与原版安装不强制要求 Java；留空时启动游戏会自动选择 Java。";
+        ? L.Tr("Loader.JavaHintInstaller")
+        : L.Tr("Loader.JavaHintFabric");
 
     public bool CanInstall =>
         !IsLoading
         && !IsInstalling
         && SelectedLoader is { IsAvailable: true, SelectedVersion: not null };
 
-    public string ConfirmText => IsInstalling ? "正在安装..." : "开始安装";
+    public string ConfirmText => IsInstalling
+        ? L.Tr("Loader.Installing")
+        : L.Tr("Loader.StartInstall");
 
     public async Task OpenAsync(
         GameVersion baseVersion,
@@ -108,10 +111,10 @@ public sealed partial class ModLoaderSelectorViewModel : ViewModelBase
         _installHandler = installHandler;
         _existingLoaders = _minecraft.GetInstalledLoaderProfiles(gameDirectory, baseVersion.Name);
 
-        Title = $"为 Minecraft {baseVersion.Name} 选择模组加载器";
+        Title = L.Format("Loader.TitleForVersion", baseVersion.Name);
         Subtitle = allowVanilla
-            ? "原版与模组加载器只能选择一个；同一游戏版本只保留一个模组加载器。"
-            : "选择要添加的模组加载器；如已有加载器，安装成功后会替换旧加载器。";
+            ? L.Tr("Loader.ModeVanillaHint")
+            : L.Tr("Loader.ModeAddHint");
         IsOpen = true;
         IsLoading = true;
         IsInstalling = false;
@@ -122,15 +125,21 @@ public sealed partial class ModLoaderSelectorViewModel : ViewModelBase
 
         HasExistingLoader = _existingLoaders.Count > 0;
         ExistingLoaderText = HasExistingLoader
-            ? "检测到已有：" + string.Join("、", _existingLoaders.Select(loader =>
-                $"{loader.DisplayName}（{loader.Name}）"))
+            ? L.Format(
+                "Loader.Existing",
+                string.Join(
+                    L.Tr("Common.ListSeparator"),
+                    _existingLoaders.Select(loader => L.Format(
+                        "Loader.ExistingItem",
+                        loader.DisplayName,
+                        loader.Name))))
             : string.Empty;
 
         var detectedJava = _minecraft.TryGetDefaultJavaPath(gameDirectory);
         JavaPath = initialJavaPath;
         DetectedJavaText = string.IsNullOrWhiteSpace(detectedJava)
-            ? "未检测到 Java；安装器会在留空时尝试使用版本对应的 Java。"
-            : $"自动检测：{detectedJava}";
+            ? L.Tr("Loader.JavaNotDetectedHint")
+            : L.Format("Loader.AutoDetectedJava", detectedJava);
 
         NotifyStateChanged();
 
@@ -152,7 +161,7 @@ public sealed partial class ModLoaderSelectorViewModel : ViewModelBase
 
             SelectDefaultLoader();
             if (SelectedLoader is null)
-                ErrorMessage = "此 Minecraft 版本没有可用的模组加载器。";
+                ErrorMessage = L.Tr("Loader.NoLoaders");
         }
         catch (OperationCanceledException)
         {
@@ -160,7 +169,7 @@ public sealed partial class ModLoaderSelectorViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"获取模组加载器列表失败：{ex.Message}";
+            ErrorMessage = L.Format("Loader.LoadFailed", ex.Message);
         }
         finally
         {
@@ -173,7 +182,7 @@ public sealed partial class ModLoaderSelectorViewModel : ViewModelBase
     [RelayCommand]
     private async Task BrowseJavaAsync()
     {
-        var file = await _picker.PickJavaExecutableAsync("选择安装模组加载器使用的 Java");
+        var file = await _picker.PickJavaExecutableAsync(L.Tr("Loader.PickJava"));
         if (!string.IsNullOrWhiteSpace(file))
         {
             JavaPath = file;
@@ -227,11 +236,11 @@ public sealed partial class ModLoaderSelectorViewModel : ViewModelBase
                 return;
             }
 
-            ErrorMessage = "安装未完成，请查看启动器底部的错误信息。";
+            ErrorMessage = L.Tr("Loader.InstallIncomplete");
         }
         catch (Exception ex)
         {
-            ErrorMessage = $"安装失败：{ex.Message}";
+            ErrorMessage = L.Format("Loader.InstallFailed", ex.Message);
         }
         finally
         {
@@ -246,7 +255,7 @@ public sealed partial class ModLoaderSelectorViewModel : ViewModelBase
         {
             if (!value.IsAvailable)
             {
-                ErrorMessage = value.Catalog.Error ?? "该模组加载器当前不可用。";
+                ErrorMessage = value.Catalog.Error ?? L.Tr("Loader.UnavailableForVersion");
                 _availabilityError = true;
             }
             else if (_availabilityError)

@@ -2,6 +2,8 @@ using System.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PMCL.Models;
 
+using PMCL.Localization;
+
 namespace PMCL.ViewModels;
 
 /// <summary>
@@ -27,13 +29,15 @@ public sealed class VersionItemViewModel : ViewModelBase
 
     public IAsyncRelayCommand InstallCommand { get; }
 
-    public string StatusLabel => Version.IsInstalled ? "已安装" : "未安装";
+    public string StatusLabel => Version.IsInstalled
+        ? L.Tr("Version.Installed")
+        : L.Tr("Version.NotInstalled");
 
     public string InstallLabel => Version.IsModded
-        ? "管理加载器"
+        ? L.Tr("Version.ManageLoader")
         : Version.IsInstalled
-            ? "重新下载"
-            : "下载";
+            ? L.Tr("Version.Redownload")
+            : L.Tr("Version.Download");
 
     public string LoaderBadge => Version.LoaderBadge;
 

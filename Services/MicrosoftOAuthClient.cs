@@ -1,5 +1,6 @@
 using System.Text.Json;
 using PMCL.Models;
+using PMCL.Localization;
 
 namespace PMCL.Services;
 
@@ -36,7 +37,7 @@ public sealed class MicrosoftOAuthClient
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(refreshToken))
-            throw new MicrosoftAuthException("该 Microsoft 账户没有可用的刷新令牌，请重新登录。");
+            throw new MicrosoftAuthException(L.Tr("OAuth.NoRefreshToken"));
 
         return RequestTokenAsync(
             new Dictionary<string, string>
@@ -74,7 +75,7 @@ public sealed class MicrosoftOAuthClient
             if (!response.IsSuccessStatusCode)
             {
                 if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-                    throw new MicrosoftAuthException("Microsoft 登录请求过于频繁，请稍后重试。");
+                    throw new MicrosoftAuthException(L.Tr("OAuth.TooManyRequests"));
 
                 var error = TryReadError(body);
                 throw new MicrosoftAuthException(MapOAuthError(error.Error, error.Description));
@@ -87,8 +88,7 @@ public sealed class MicrosoftOAuthClient
             }
             catch (JsonException)
             {
-                throw new MicrosoftAuthException(
-                    "Microsoft 登录服务返回了无法识别的设备码数据，请稍后重试。");
+                throw new MicrosoftAuthException(L.Tr("OAuth.InvalidDeviceCodeData"));
             }
 
             using (document)
@@ -140,7 +140,7 @@ public sealed class MicrosoftOAuthClient
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (challenge.ExpiresAt <= DateTimeOffset.UtcNow)
-                throw new MicrosoftAuthException("Microsoft 登录代码已过期，请重新获取。");
+                throw new MicrosoftAuthException(L.Tr("OAuth.CodeExpired"));
 
             var (response, body) = await PostFormAsync(
                     TokenEndpoint,
@@ -196,7 +196,7 @@ public sealed class MicrosoftOAuthClient
 
             var remaining = challenge.ExpiresAt - DateTimeOffset.UtcNow;
             if (remaining <= TimeSpan.Zero)
-                throw new MicrosoftAuthException("Microsoft 登录代码已过期，请重新获取。");
+                throw new MicrosoftAuthException(L.Tr("OAuth.CodeExpired"));
 
             var delay = interval < remaining ? interval : remaining;
             await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
@@ -215,7 +215,7 @@ public sealed class MicrosoftOAuthClient
             if (!response.IsSuccessStatusCode)
             {
                 if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-                    throw new MicrosoftAuthException("Microsoft 登录请求过于频繁，请稍后重试。");
+                    throw new MicrosoftAuthException(L.Tr("OAuth.TooManyRequests"));
 
                 var error = TryReadError(body);
                 throw new MicrosoftAuthException(MapOAuthError(error.Error, error.Description));
@@ -252,7 +252,7 @@ public sealed class MicrosoftOAuthClient
         catch (Exception ex)
         {
             throw new MicrosoftAuthException(
-                $"无法连接 Microsoft 登录服务，请检查网络：{ex.Message}", ex);
+                L.Format("OAuth.NetworkFailed", ex.Message), ex);
         }
     }
 
@@ -312,22 +312,22 @@ public sealed class MicrosoftOAuthClient
     {
         var detail = string.IsNullOrWhiteSpace(description)
             ? string.Empty
-            : $"（{description.Trim()}）";
+            : L.Format("OAuth.ErrorDetail", description.Trim());
 
         return error switch
         {
-            "invalid_grant" => "Microsoft 登录授权已过期或已被使用，请重新获取登录代码。" + detail,
-            "invalid_client" => "Microsoft 登录客户端配置无效，请稍后重试。" + detail,
-            "unauthorized_client" => "该 Microsoft 账户无法使用当前登录方式。" + detail,
+            "invalid_grant" => L.Tr("OAuth.InvalidGrant") + detail,
+            "invalid_client" => L.Tr("OAuth.InvalidClient") + detail,
+            "unauthorized_client" => L.Tr("OAuth.UnauthorizedClient") + detail,
             "access_denied" or "authorization_declined" =>
-                "Microsoft 登录已被取消。" + detail,
-            "consent_required" => "需要同意 Microsoft 账户权限后才能继续。" + detail,
-            "interaction_required" => "需要重新登录 Microsoft 账户。" + detail,
-            "authorization_pending" => "正在等待浏览器中的 Microsoft 授权。" + detail,
-            "slow_down" => "Microsoft 要求降低登录轮询频率，请稍候。" + detail,
-            "expired_token" => "Microsoft 登录代码已过期，请重新获取。" + detail,
-            "bad_verification_code" => "Microsoft 登录代码无效，请重新获取。" + detail,
-            _ => $"Microsoft 登录失败：{error}{detail}"
+                L.Tr("OAuth.Canceled") + detail,
+            "consent_required" => L.Tr("OAuth.ConsentRequired") + detail,
+            "interaction_required" => L.Tr("OAuth.InteractionRequired") + detail,
+            "authorization_pending" => L.Tr("OAuth.Pending") + detail,
+            "slow_down" => L.Tr("OAuth.SlowDown") + detail,
+            "expired_token" => L.Tr("OAuth.ExpiredToken") + detail,
+            "bad_verification_code" => L.Tr("OAuth.BadVerificationCode") + detail,
+            _ => L.Format("OAuth.Generic", error, detail)
         };
     }
 

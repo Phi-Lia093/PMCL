@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using PMCL.Localization;
 
 namespace PMCL.Models;
 
@@ -58,7 +59,9 @@ public sealed partial class GameVersionSettings : ObservableObject
     public partial string PreLaunchCommand { get; set; } = string.Empty;
 
     [JsonIgnore]
-    public string JavaDisplay => string.IsNullOrWhiteSpace(JavaPath) ? "自动检测" : JavaPath;
+    public string JavaDisplay => string.IsNullOrWhiteSpace(JavaPath)
+        ? L.Tr("Version.AutoJava")
+        : JavaPath;
 
     [JsonIgnore]
     public string MemoryDisplay => $"{MinimumRamMb} - {MaximumRamMb} MB";

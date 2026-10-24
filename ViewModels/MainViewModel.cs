@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PMCL.Localization;
 using PMCL.Models;
 using PMCL.Services;
 
@@ -81,21 +82,21 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public string PageTitle => CurrentPage switch
     {
-        HomeViewModel => "主页",
-        VersionsViewModel => "版本库",
-        AccountViewModel => "账户",
-        SettingsViewModel => "全局设置",
-        VersionSettingsViewModel => "版本设置",
+        HomeViewModel => L.Tr("Nav.Home"),
+        VersionsViewModel => L.Tr("Nav.Versions"),
+        AccountViewModel => L.Tr("Nav.Account"),
+        SettingsViewModel => L.Tr("Nav.SettingsPage"),
+        VersionSettingsViewModel => L.Tr("Nav.VersionSettings"),
         _ => "PMCL"
     };
 
     public string PageSubtitle => CurrentPage switch
     {
-        HomeViewModel => "欢迎使用 PMCL，准备好开始游戏了吗？",
-        VersionsViewModel => "浏览 Mojang 官方版本，下载时选择原版或 Forge / Fabric / NeoForge / OptiFine。",
-        AccountViewModel => "管理多个 Microsoft / 离线账户，随时切换，登录页使用系统浏览器。",
-        SettingsViewModel => "管理游戏目录、下载源、界面语言与启动器数据。",
-        VersionSettingsViewModel => "为此版本单独配置 Java、内存、登录方式、模组加载器与启动参数。",
+        HomeViewModel => L.Tr("Page.Subtitle.Home"),
+        VersionsViewModel => L.Tr("Page.Subtitle.Versions"),
+        AccountViewModel => L.Tr("Page.Subtitle.Account"),
+        SettingsViewModel => L.Tr("Page.Subtitle.Settings"),
+        VersionSettingsViewModel => L.Tr("Page.Subtitle.VersionSettings"),
         _ => "Philia093's MineCraft Launcher"
     };
 
@@ -124,12 +125,15 @@ public sealed partial class MainViewModel : ViewModelBase
             Session.EnsureInstalledSelection();
             Session.VersionsLoaded = true;
             Versions.RebuildFromSession();
-            Session.SetStatus($"已加载 {versions.Count} 个 Minecraft 版本，本地已安装 {Session.InstalledVersions.Count} 个");
+            Session.SetStatus(L.Format(
+                "Versions.LoadedSummary",
+                versions.Count,
+                Session.InstalledVersions.Count));
         }
         catch (Exception ex)
         {
             Session.VersionsLoaded = false;
-            Session.SetError($"获取版本列表失败：{ex.Message}");
+            Session.SetError(L.Format("Versions.LoadFailed", ex.Message));
         }
         finally
         {
@@ -195,7 +199,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Session.SetStatus($"恢复账户失败：{ex.Message}");
+            Session.SetStatus(L.Format("Account.RestoreFailed", ex.Message));
         }
     }
 

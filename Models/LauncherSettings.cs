@@ -12,7 +12,7 @@ public sealed partial class LauncherSettings : ObservableObject
     public partial string GameDirectory { get; set; } = CmlLib.Core.MinecraftPath.GetOSDefaultPath();
 
     /// <summary>
-    /// UI language placeholder. Only Simplified Chinese is implemented today.
+    /// UI language code. Translation files live in <c>Assets/i18n</c>.
     /// </summary>
     [ObservableProperty]
     public partial string Language { get; set; } = "zh-CN";

@@ -1,3 +1,5 @@
+using PMCL.Localization;
+
 namespace PMCL.Services;
 
 /// <summary>
@@ -33,7 +35,7 @@ public sealed record LocalModInfo(
 
     public string SizeText => DownloadSpeedTracker.FormatBytes(SizeBytes);
 
-    public string StatusText => IsEnabled ? "已启用" : "已禁用";
+    public string StatusText => IsEnabled ? L.Tr("Mod.StatusEnabled") : L.Tr("Mod.StatusDisabled");
 }
 
 /// <summary>
@@ -100,11 +102,11 @@ public sealed class ModService
             : mod.FilePath + LocalModInfo.DisabledSuffix;
 
         if (File.Exists(targetPath))
-            throw new IOException($"无法{(enabled ? "启用" : "禁用")}模组：目标文件已存在 {targetPath}");
+            throw new IOException(L.Format("Mod.TargetExists", targetPath));
 
         File.Move(mod.FilePath, targetPath);
         return TryDescribe(targetPath)
-               ?? throw new IOException($"无法识别重命名后的模组文件：{targetPath}");
+               ?? throw new IOException(L.Format("Mod.RenameUnrecognized", targetPath));
     }
 
     /// <summary>
@@ -113,7 +115,8 @@ public sealed class ModService
     public void Delete(LocalModInfo mod)
     {
         var verified = TryDescribe(mod.FilePath)
-                       ?? throw new InvalidOperationException($"不是有效的模组文件：{mod.FilePath}");
+                       ?? throw new InvalidOperationException(
+                           L.Format("Mod.InvalidFile", mod.FilePath));
 
         File.Delete(verified.FilePath);
     }

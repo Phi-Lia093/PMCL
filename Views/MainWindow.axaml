@@ -1,15 +1,15 @@
 <Window xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:loc="using:PMCL.Localization"
         xmlns:vm="using:PMCL.ViewModels"
         xmlns:views="using:PMCL.Views"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="800"
+        mc:Ignorable="d" d:DesignWidth="1240" d:DesignHeight="720"
         x:Class="PMCL.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Icon="/Assets/avalonia-logo.ico"
         Title="PMCL - Philia093's MineCraft Launcher"
-        Width="1240" Height="800"
+        Width="1240" Height="720"
         MinWidth="1000" MinHeight="660"
         WindowStartupLocation="CenterScreen"
         ExtendClientAreaToDecorationsHint="True"
@@ -65,16 +65,16 @@
                         VerticalAlignment="Stretch">
                 <Button Classes="caption"
                         Content="—"
-                        ToolTip.Tip="最小化"
+                        ToolTip.Tip="{loc:Tr Window.Minimize}"
                         Click="MinimizeButton_Click" />
                 <Button Classes="caption"
                         Name="MaximizeButton"
                         Content="□"
-                        ToolTip.Tip="最大化 / 还原"
+                        ToolTip.Tip="{loc:Tr Window.MaximizeRestore}"
                         Click="MaximizeButton_Click" />
                 <Button Classes="caption close"
                         Content="✕"
-                        ToolTip.Tip="关闭"
+                        ToolTip.Tip="{loc:Tr Window.Close}"
                         Click="CloseButton_Click" />
             </StackPanel>
         </Grid>
@@ -86,7 +86,7 @@
                     BorderThickness="0,0,1,0">
                 <Grid RowDefinitions="*,Auto" Margin="16,20">
                     <StackPanel Spacing="4">
-                        <TextBlock Text="导航" Classes="muted"
+                        <TextBlock Text="{loc:Tr Nav.Title}" Classes="muted"
                                    Margin="12,0,0,8"
                                    FontSize="10"
                                    FontWeight="Bold" />
@@ -95,7 +95,7 @@
                                 Command="{Binding NavigateHomeCommand}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <TextBlock Text="◈" FontSize="15" VerticalAlignment="Center" />
-                                <TextBlock Text="主页" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:Tr Nav.Home}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
 
@@ -103,7 +103,7 @@
                                 Command="{Binding NavigateVersionsCommand}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <TextBlock Text="▤" FontSize="15" VerticalAlignment="Center" />
-                                <TextBlock Text="版本库" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:Tr Nav.Versions}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
 
@@ -111,7 +111,7 @@
                                 Command="{Binding NavigateAccountCommand}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <TextBlock Text="☺" FontSize="15" VerticalAlignment="Center" />
-                                <TextBlock Text="账户" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:Tr Nav.Accounts}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
 
@@ -119,7 +119,7 @@
                                 Command="{Binding NavigateSettingsCommand}">
                             <StackPanel Orientation="Horizontal" Spacing="12">
                                 <TextBlock Text="⚙" FontSize="15" VerticalAlignment="Center" />
-                                <TextBlock Text="设置" VerticalAlignment="Center" />
+                                <TextBlock Text="{loc:Tr Nav.Settings}" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
 
@@ -131,7 +131,7 @@
                                 Margin="0,18,0,0"
                                 IsVisible="{Binding Session.IsGameRunning}">
                             <StackPanel Spacing="4">
-                                <TextBlock Text="Minecraft 运行中"
+                                <TextBlock Text="{loc:Tr Game.Running}"
                                            FontSize="11"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource SuccessBrush}" />
@@ -211,7 +211,7 @@
                         <Button Grid.Column="2"
                                 Classes="ghost"
                                 Padding="8,2"
-                                Content="关闭"
+                                Content="{loc:Tr Game.Close}"
                                 Command="{Binding Session.ClearErrorCommand}" />
                     </Grid>
                 </Border>
@@ -239,7 +239,7 @@
                                        VerticalAlignment="Center" />
                         </StackPanel>
                         <TextBlock Grid.Column="1"
-                                   Text="多账户 · 设备码登录 · 版本独立配置"
+                                   Text="{loc:Tr App.Tagline}"
                                    Classes="muted"
                                    FontSize="10"
                                    VerticalAlignment="Center" />
@@ -282,7 +282,7 @@
                                      IsIndeterminate="True"
                                      IsVisible="{Binding Session.IsGameStarting}"
                                      VerticalAlignment="Center" />
-                        <TextBlock Text="正在处理" Classes="h2" VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:Tr Busy.Title}" Classes="h2" VerticalAlignment="Center" />
                     </StackPanel>
                     <TextBlock Text="{Binding Session.StatusMessage}"
                                Classes="muted"
@@ -305,7 +305,7 @@
                     <TextBlock Text="{Binding Session.DownloadSourceText}"
                                Classes="muted"
                                FontSize="10" />
-                    <TextBlock Text="请保持网络连接，下载完成前不要关闭启动器。"
+                    <TextBlock Text="{loc:Tr Busy.Hint}"
                                Classes="muted"
                                FontSize="10" />
                 </StackPanel>
@@ -322,7 +322,7 @@
                     VerticalAlignment="Center">
                 <StackPanel Spacing="16">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="Minecraft 正在运行" Classes="h2" />
+                        <TextBlock Text="{loc:Tr Game.CloseTitle}" Classes="h2" />
                         <TextBlock Text="{Binding Session.GameRunningVersion}"
                                    FontWeight="SemiBold"
                                    Foreground="#C3B5FF" />
@@ -331,19 +331,19 @@
                                    FontSize="12" />
                     </StackPanel>
 
-                    <TextBlock Text="要关闭游戏并返回启动器吗？未保存的游戏进度将会丢失。"
+                    <TextBlock Text="{loc:Tr Game.ClosePrompt}"
                                Classes="muted"
                                TextWrapping="Wrap" />
 
                     <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
                         <Button Grid.Column="0"
                                 Classes="secondary"
-                                Content="继续游戏"
+                                Content="{loc:Tr Game.Continue}"
                                 HorizontalAlignment="Stretch"
                                 Command="{Binding Session.DismissGameClosePromptCommand}" />
                         <Button Grid.Column="1"
                                 Classes="danger"
-                                Content="关闭游戏"
+                                Content="{loc:Tr Game.CloseGame}"
                                 HorizontalAlignment="Stretch"
                                 Command="{Binding Session.CloseGameCommand}" />
                     </Grid>
@@ -352,4 +352,3 @@
         </Border>
     </Grid>
 </Window>
-

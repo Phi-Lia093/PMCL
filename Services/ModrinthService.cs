@@ -1,4 +1,5 @@
 using System.Text.Json;
+using PMCL.Localization;
 using PMCL.Models;
 
 namespace PMCL.Services;
@@ -17,16 +18,18 @@ public sealed record ModrinthSearchHit(
 {
     public string DownloadsText => Downloads switch
     {
-        >= 1_000_000 => $"{Downloads / 1_000_000d:0.0}M 次下载",
-        >= 1_000 => $"{Downloads / 1_000d:0.0}K 次下载",
-        _ => $"{Downloads} 次下载"
+        >= 1_000_000 => L.Format("MR.Downloads", $"{Downloads / 1_000_000d:0.0}M"),
+        >= 1_000 => L.Format("MR.Downloads", $"{Downloads / 1_000d:0.0}K"),
+        _ => L.Format("MR.Downloads", Downloads)
     };
 
     public string VersionSummary => Versions.Count == 0
-        ? "兼容版本未知"
+        ? L.Tr("MR.VersionsUnknown")
         : string.Join(" / ", Versions.Take(4)) + (Versions.Count > 4 ? " …" : string.Empty);
 
-    public string AuthorText => string.IsNullOrWhiteSpace(Author) ? "未知作者" : $"作者 {Author}";
+    public string AuthorText => string.IsNullOrWhiteSpace(Author)
+        ? L.Tr("MR.AuthorUnknown")
+        : L.Format("MR.Author", Author);
 }
 
 public sealed record ModrinthSearchResult(
@@ -140,7 +143,7 @@ public sealed class ModrinthService : IDisposable
         string? category = null)
     {
         var loader = GetLoaderName(loaderKind)
-            ?? throw new InvalidOperationException("原版或 OptiFine 版本不支持 Modrinth 模组。");
+            ?? throw new InvalidOperationException(L.Tr("MR.NoLoaderSupport"));
 
         var facets = new List<string[]>
         {
@@ -194,10 +197,10 @@ public sealed class ModrinthService : IDisposable
         CancellationToken cancellationToken = default)
     {
         var loader = GetLoaderName(loaderKind)
-            ?? throw new InvalidOperationException("该版本不支持从 Modrinth 安装模组。");
+            ?? throw new InvalidOperationException(L.Tr("MR.VersionUnsupported"));
 
         if (string.IsNullOrWhiteSpace(projectId))
-            throw new InvalidOperationException("缺少 Modrinth 项目 ID。");
+            throw new InvalidOperationException(L.Tr("MR.MissingProjectId"));
 
         Directory.CreateDirectory(modsDirectory);
 
@@ -221,7 +224,7 @@ public sealed class ModrinthService : IDisposable
             if (!visitedProjects.Add(targetProjectId))
                 return;
 
-            progress?.Report($"正在查询 {targetProjectId} 的兼容版本...");
+            progress?.Report(L.Format("MR.QueryingVersions", targetProjectId));
             var version = await GetCompatibleVersionAsync(
                     targetProjectId,
                     minecraftVersion,
@@ -233,13 +236,13 @@ public sealed class ModrinthService : IDisposable
             {
                 if (isDependency)
                 {
-                    warnings.Add(
-                        $"{targetProjectId} 没有兼容 Minecraft {minecraftVersion} / {loader} 的版本");
+                    warnings.Add(L.Format(
+                        "MR.DependencyNoCompatible", targetProjectId, minecraftVersion, loader));
                     return;
                 }
 
                 throw new InvalidOperationException(
-                    $"该项目没有兼容 Minecraft {minecraftVersion} / {loader} 的版本。");
+                    L.Format("MR.NoCompatible", minecraftVersion, loader));
             }
 
             await InstallVersionCoreAsync(version)
@@ -254,11 +257,11 @@ public sealed class ModrinthService : IDisposable
             var file = version.PrimaryFile;
             if (file is null)
             {
-                warnings.Add($"{version.Name} 没有可下载的文件");
+                warnings.Add(L.Format("MR.NoDownloadableFile", version.Name));
                 return;
             }
 
-            progress?.Report($"正在下载 {version.Name}...");
+            progress?.Report(L.Format("MR.Downloading", version.Name));
             if (await DownloadFileAsync(file, modsDirectory, cancellationToken).ConfigureAwait(false))
                 installedFiles.Add(file.FileName);
             else
@@ -278,7 +281,9 @@ public sealed class ModrinthService : IDisposable
 
                     if (dependencyVersion is null)
                     {
-                        warnings.Add($"无法获取前置模组 {dependency.ProjectId ?? dependency.VersionId}");
+                        warnings.Add(L.Format(
+                            "MR.DependencyFetchFailed",
+                            dependency.ProjectId ?? dependency.VersionId));
                         continue;
                     }
 
@@ -297,7 +302,7 @@ public sealed class ModrinthService : IDisposable
                     }
                     else
                     {
-                        warnings.Add($"{dependencyVersion.Name} 与当前版本不兼容");
+                        warnings.Add(L.Format("MR.DependencyIncompatible", dependencyVersion.Name));
                     }
                 }
                 else if (!string.IsNullOrWhiteSpace(dependency.ProjectId))

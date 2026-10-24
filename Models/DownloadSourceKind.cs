@@ -1,3 +1,5 @@
+using PMCL.Localization;
+
 namespace PMCL.Models;
 
 /// <summary>
@@ -14,15 +16,13 @@ public static class DownloadSourceKindExtensions
 {
     public static string ToDisplayName(this DownloadSourceKind source) => source switch
     {
-        DownloadSourceKind.BmclApi => "BMCLAPI 镜像",
-        _ => "官方源"
+        DownloadSourceKind.BmclApi => L.Tr("Settings.DownloadSource.BmclApi"),
+        _ => L.Tr("DownloadSource.OfficialName")
     };
 
     public static string ToDescription(this DownloadSourceKind source) => source switch
     {
-        DownloadSourceKind.BmclApi =>
-            "优先使用 BMCLAPI / 国内镜像加速，镜像不可用时自动回退到官方地址。",
-        _ =>
-            "优先使用 Mojang、Fabric、Forge、NeoForge 与 OptiFine 的官方地址；官方请求失败时才会尝试镜像回退，不依赖 BMCLAPI。"
+        DownloadSourceKind.BmclApi => L.Tr("DownloadSource.BmclApiDescription"),
+        _ => L.Tr("DownloadSource.OfficialDescription")
     };
 }

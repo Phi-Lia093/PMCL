@@ -5,6 +5,8 @@ using CommunityToolkit.Mvvm.Input;
 using PMCL.Models;
 using PMCL.Services;
 
+using PMCL.Localization;
+
 namespace PMCL.ViewModels;
 
 /// <summary>
@@ -46,7 +48,13 @@ public sealed partial class VersionsViewModel : ViewModelBase
 
     public ObservableCollection<VersionItemViewModel> Items { get; } = new();
 
-    public IReadOnlyList<string> TypeFilters { get; } = new[] { "全部类型", "正式版", "快照", "旧版本" };
+    public IReadOnlyList<string> TypeFilters { get; } = new[]
+    {
+        L.Tr("Versions.Filter.All"),
+        L.Tr("Version.Type.Release"),
+        L.Tr("Version.Type.Snapshot"),
+        L.Tr("Versions.Filter.Old")
+    };
 
     [ObservableProperty]
     public partial string SearchText { get; set; } = string.Empty;
@@ -58,7 +66,7 @@ public sealed partial class VersionsViewModel : ViewModelBase
     public partial bool ShowInstalledOnly { get; set; }
 
     [ObservableProperty]
-    public partial string Summary { get; set; } = "尚未加载版本列表";
+    public partial string Summary { get; set; } = L.Tr("Versions.NotLoaded");
 
     [ObservableProperty]
     public partial VersionItemViewModel? SelectedItem { get; set; }
@@ -186,7 +194,7 @@ public sealed partial class VersionsViewModel : ViewModelBase
         }
 
         Summary = Session.Versions.Count == 0
-            ? "尚未加载版本列表"
-            : $"显示 {Items.Count} / {Session.Versions.Count} 个版本";
+            ? L.Tr("Versions.NotLoaded")
+            : L.Format("Versions.FilteredSummary", Items.Count, Session.Versions.Count);
     }
 }

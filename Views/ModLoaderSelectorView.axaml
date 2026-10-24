@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:loc="using:PMCL.Localization"
              xmlns:vm="using:PMCL.ViewModels"
              xmlns:services="using:PMCL.Services"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -76,13 +76,13 @@
                             Padding="12"
                             IsVisible="{Binding ShowReplacementWarning}">
                         <StackPanel Spacing="4">
-                            <TextBlock Text="模组加载器互斥提醒"
+                            <TextBlock Text="{loc:Tr Loader.MutexTitle}"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource DangerBrush}" />
                             <TextBlock Text="{Binding ExistingLoaderText}"
                                        Classes="muted"
                                        TextWrapping="Wrap" />
-                            <TextBlock Text="继续安装会替换同一游戏版本下现有的加载器版本（相同版本则重新安装），只保留本次选择的加载器。该版本的存档、截图与模组会先迁移到新加载器，不会随旧版本删除。"
+                            <TextBlock Text="{loc:Tr Loader.MutexHint}"
                                        Classes="muted"
                                        TextWrapping="Wrap" />
                         </StackPanel>
@@ -90,9 +90,9 @@
 
                     <StackPanel Spacing="8">
                         <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Text="选择加载器" Classes="label" />
+                            <TextBlock Text="{loc:Tr Loader.Select}" Classes="label" />
                             <TextBlock Grid.Column="1"
-                                       Text="单选"
+                                       Text="{loc:Tr Loader.Single}"
                                        Classes="muted"
                                        FontSize="10" />
                         </Grid>
@@ -128,7 +128,7 @@
                                                         Background="#1B2233"
                                                         CornerRadius="5"
                                                         Padding="6,1">
-                                                    <TextBlock Text="单选"
+                                                    <TextBlock Text="{loc:Tr Loader.Single}"
                                                                FontSize="9"
                                                                Foreground="{StaticResource TextSecondaryBrush}" />
                                                 </Border>
@@ -162,7 +162,7 @@
                         <StackPanel Spacing="9">
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                                 <StackPanel Spacing="4">
-                                    <TextBlock Text="加载器版本" Classes="label" />
+                                    <TextBlock Text="{loc:Tr Loader.Version}" Classes="label" />
                                     <ComboBox ItemsSource="{Binding SelectedLoader.Versions}"
                                               SelectedIndex="{Binding SelectedLoader.SelectedVersionIndex, Mode=TwoWay}"
                                               HorizontalAlignment="Stretch">
@@ -179,7 +179,7 @@
                                     </ComboBox>
                                 </StackPanel>
                                 <TextBlock Grid.Column="1"
-                                           Text="一次只能选择一个模组加载器"
+                                           Text="{loc:Tr Loader.SingleHint}"
                                            Classes="muted"
                                            VerticalAlignment="Bottom"
                                            FontSize="10" />
@@ -187,20 +187,20 @@
 
 
                             <StackPanel Spacing="5">
-                                <TextBlock Text="安装器使用的 Java" Classes="label" />
+                                <TextBlock Text="{loc:Tr Loader.InstallerJava}" Classes="label" />
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                     <TextBox Grid.Column="0"
                                              Text="{Binding JavaPath}"
-                                             PlaceholderText="留空则自动检测" />
+                                             PlaceholderText="{loc:Tr Loader.JavaPlaceholder}" />
                                     <Button Grid.Column="1"
                                             Classes="secondary"
-                                            Content="浏览"
+                                            Content="{loc:Tr Common.Browse}"
                                             Command="{Binding BrowseJavaCommand}" />
                                 </Grid>
                                 <StackPanel Orientation="Horizontal" Spacing="10">
                                     <Button Classes="ghost"
                                             Padding="0,2"
-                                            Content="清除路径"
+                                            Content="{loc:Tr Common.ClearPath}"
                                             Command="{Binding ClearJavaCommand}" />
                                     <TextBlock Text="{Binding DetectedJavaText}"
                                                Classes="muted"
@@ -231,13 +231,13 @@
             </ScrollViewer>
 
             <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
-                <TextBlock Text="安装完成后会自动刷新版本列表；可在版本设置中随时更换或移除加载器。"
+                <TextBlock Text="{loc:Tr Loader.DoneHint}"
                            Classes="muted"
                            VerticalAlignment="Center"
                            TextWrapping="Wrap" />
                 <Button Grid.Column="1"
                         Classes="secondary"
-                        Content="取消"
+                        Content="{loc:Tr Common.Cancel}"
                         IsEnabled="{Binding !IsInstalling}"
                         Command="{Binding CloseCommand}" />
                 <Button Grid.Column="2"
@@ -250,4 +250,3 @@
         </Grid>
     </Border>
 </UserControl>
-

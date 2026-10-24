@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using CmlLib.Core.Auth;
 using PMCL.Models;
+using PMCL.Localization;
 
 namespace PMCL.Services;
 
@@ -68,16 +69,15 @@ public sealed class AuthenticationService
         CancellationToken cancellationToken = default)
     {
         var pending = _pendingDeviceLogin
-            ?? throw new MicrosoftAuthException(
-                "没有正在进行的 Microsoft 登录，请重新获取登录代码。");
+            ?? throw new MicrosoftAuthException(L.Tr("Auth.NoPendingLogin"));
 
         if (!string.Equals(pending.DeviceCode, challenge.DeviceCode, StringComparison.Ordinal))
-            throw new MicrosoftAuthException("登录会话已失效，请重新获取登录代码。");
+            throw new MicrosoftAuthException(L.Tr("Auth.SessionExpired"));
 
         if (pending.ExpiresAt <= DateTimeOffset.UtcNow)
         {
             _pendingDeviceLogin = null;
-            throw new MicrosoftAuthException("Microsoft 登录代码已过期，请重新获取。");
+            throw new MicrosoftAuthException(L.Tr("Auth.CodeExpired"));
         }
 
         try
@@ -102,7 +102,7 @@ public sealed class AuthenticationService
         CancellationToken cancellationToken = default)
     {
         var account = _accountStore.Find(accountId)
-            ?? throw new AccountLoginException("找不到该账户，可能已被删除。");
+            ?? throw new AccountLoginException(L.Tr("Auth.AccountNotFound"));
 
         if (account.Kind == AccountKind.Offline)
         {
@@ -123,7 +123,7 @@ public sealed class AuthenticationService
         if (string.IsNullOrWhiteSpace(account.RefreshToken))
         {
             throw new AccountLoginException(
-                $"账户 {account.DisplayName} 的登录已失效，请重新使用 Microsoft 登录。");
+                L.Format("Auth.AccountSignedOut", account.DisplayName));
         }
 
         MicrosoftOAuthTokens tokens;
@@ -135,7 +135,7 @@ public sealed class AuthenticationService
         catch (MicrosoftAuthException ex)
         {
             throw new AccountLoginException(
-                $"账户 {account.DisplayName} 的登录已失效，请重新登录：{ex.Message}", ex);
+                L.Format("Auth.AccountSignedOutDetail", account.DisplayName, ex.Message), ex);
         }
 
         return await AuthenticateMicrosoftAsync(tokens, account, cancellationToken)
@@ -146,7 +146,7 @@ public sealed class AuthenticationService
     {
         username = username.Trim();
         if (username.Length is < 3 or > 16)
-            throw new AccountLoginException("离线用户名长度必须为 3 到 16 个字符。");
+            throw new AccountLoginException(L.Tr("Account.OfflineNameInvalid"));
 
         var existing = _accountStore.GetAccounts().FirstOrDefault(account =>
             account.Kind == AccountKind.Offline
@@ -185,7 +185,7 @@ public sealed class AuthenticationService
             return CreateOfflineSession(account.Username, account.Uuid);
 
         if (string.IsNullOrWhiteSpace(account.MinecraftAccessToken))
-            throw new AccountLoginException("该 Microsoft 账户没有可用的 Minecraft 登录令牌，请重新登录。");
+            throw new AccountLoginException(L.Tr("Auth.NoMinecraftToken"));
 
         return new MSession
         {
@@ -242,7 +242,7 @@ public sealed class AuthenticationService
         var xsts = await RequestXstsAsync(xbox.Token, cancellationToken).ConfigureAwait(false);
 
         if (string.IsNullOrWhiteSpace(xsts.Token) || string.IsNullOrWhiteSpace(xsts.Uhs))
-            throw new MicrosoftAuthException("Xbox Live 没有返回有效的身份令牌，请稍后重试。");
+            throw new MicrosoftAuthException(L.Tr("Auth.InvalidXboxToken"));
 
         var minecraft = await RequestMinecraftTokenAsync(xsts.Uhs, xsts.Token, cancellationToken)
             .ConfigureAwait(false);
@@ -300,14 +300,14 @@ public sealed class AuthenticationService
         using var document = await PostJsonAsync(
                 XboxUserAuthEndpoint,
                 payload,
-                "Xbox Live 用户验证",
+                L.Tr("Auth.OpXboxUserAuth"),
                 "0",
                 cancellationToken)
             .ConfigureAwait(false);
 
         var token = GetString(document.RootElement, "Token");
         if (string.IsNullOrWhiteSpace(token))
-            throw new MicrosoftAuthException("Xbox Live 没有返回用户令牌，请稍后重试。");
+            throw new MicrosoftAuthException(L.Tr("Auth.NoXboxUserToken"));
 
         return new XboxTokenResult(token, GetUhs(document.RootElement));
     }
@@ -328,7 +328,7 @@ public sealed class AuthenticationService
         using var document = await PostJsonAsync(
                 XstsEndpoint,
                 payload,
-                "Xbox Live 安全令牌验证",
+                L.Tr("Auth.OpXsts"),
                 "1",
                 cancellationToken)
             .ConfigureAwait(false);
@@ -336,7 +336,7 @@ public sealed class AuthenticationService
         var root = document.RootElement;
         var token = GetString(root, "Token");
         if (string.IsNullOrWhiteSpace(token))
-            throw new MicrosoftAuthException("Xbox Live 没有返回安全令牌，请稍后重试。");
+            throw new MicrosoftAuthException(L.Tr("Auth.NoXboxSecurityToken"));
 
         var uhs = GetUhs(root);
         var xuid = GetXuiValue(root, "xid") ?? string.Empty;
@@ -360,7 +360,7 @@ public sealed class AuthenticationService
         using var document = await PostJsonAsync(
                 MinecraftLoginEndpoint,
                 payload,
-                "Minecraft 登录",
+                L.Tr("Auth.OpMinecraftLogin"),
                 null,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -368,7 +368,7 @@ public sealed class AuthenticationService
         var root = document.RootElement;
         var accessToken = GetString(root, "access_token");
         if (string.IsNullOrWhiteSpace(accessToken))
-            throw new MicrosoftAuthException("Minecraft 服务没有返回登录令牌，请稍后重试。");
+            throw new MicrosoftAuthException(L.Tr("Auth.NoMinecraftLoginToken"));
 
         var expiresIn = GetInt32(root, "expires_in") ?? 3600;
         return new MinecraftTokenResult(
@@ -398,7 +398,7 @@ public sealed class AuthenticationService
         }
         catch (Exception ex)
         {
-            throw new MicrosoftAuthException($"获取 Minecraft 档案失败，请检查网络：{ex.Message}", ex);
+            throw new MicrosoftAuthException(L.Format("Auth.ProfileFetchFailed", ex.Message), ex);
         }
 
         using (response)
@@ -407,14 +407,13 @@ public sealed class AuthenticationService
 
             if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
-                throw new MicrosoftAuthException(
-                    "该 Microsoft 账户没有 Minecraft: Java Edition 档案（可能未购买游戏或尚未创建角色）。");
+                throw new MicrosoftAuthException(L.Tr("Auth.NoJavaProfile"));
             }
 
             if (!response.IsSuccessStatusCode)
             {
                 throw new MicrosoftAuthException(
-                    $"获取 Minecraft 档案失败（HTTP {(int)response.StatusCode}），请确认账户拥有 Java 版游戏。");
+                    L.Format("Auth.ProfileHttpError", (int)response.StatusCode));
             }
 
             using var document = JsonDocument.Parse(body);
@@ -422,7 +421,7 @@ public sealed class AuthenticationService
             var uuid = GetString(root, "id");
             var username = GetString(root, "name");
             if (string.IsNullOrWhiteSpace(uuid) || string.IsNullOrWhiteSpace(username))
-                throw new MicrosoftAuthException("Minecraft 服务返回的账户档案不完整，请稍后重试。");
+                throw new MicrosoftAuthException(L.Tr("Auth.IncompleteProfile"));
 
             return new MinecraftProfileResult(username, uuid);
         }
@@ -460,7 +459,7 @@ public sealed class AuthenticationService
         }
         catch (Exception ex)
         {
-            throw new MicrosoftAuthException($"{operation}失败，请检查网络：{ex.Message}", ex);
+            throw new MicrosoftAuthException(L.Format("Auth.OperationNetworkFailed", operation, ex.Message), ex);
         }
 
         using (response)
@@ -473,10 +472,10 @@ public sealed class AuthenticationService
                     throw new MicrosoftAuthException(MapXboxError(xboxError));
 
                 if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
-                    throw new MicrosoftAuthException("Microsoft / Xbox 服务请求过于频繁，请稍后重试。");
+                    throw new MicrosoftAuthException(L.Tr("Auth.TooManyRequests"));
 
                 throw new MicrosoftAuthException(
-                    $"{operation}失败（HTTP {(int)response.StatusCode}）：{Truncate(body)}");
+                    L.Format("Auth.OperationHttpError", operation, (int)response.StatusCode, Truncate(body)));
             }
 
             try
@@ -485,7 +484,7 @@ public sealed class AuthenticationService
             }
             catch (JsonException)
             {
-                throw new MicrosoftAuthException($"{operation}返回了无法识别的数据，请稍后重试。");
+                throw new MicrosoftAuthException(L.Format("Auth.OperationInvalidData", operation));
             }
         }
     }
@@ -514,7 +513,7 @@ public sealed class AuthenticationService
     {
         var uhs = GetXuiValue(root, "uhs");
         if (string.IsNullOrWhiteSpace(uhs))
-            throw new MicrosoftAuthException("Xbox Live 没有返回用户哈希（UHS），请稍后重试。");
+            throw new MicrosoftAuthException(L.Tr("Auth.NoUhs"));
         return uhs;
     }
 
@@ -561,16 +560,16 @@ public sealed class AuthenticationService
         => errorCode switch
         {
             "2148916233" =>
-                "该 Microsoft 账户尚未创建 Xbox 档案。请先在 xbox.com 登录并创建档案后重试。",
+                L.Tr("Auth.Xbox.NoProfile"),
             "2148916235" =>
-                "当前国家或地区不支持 Xbox Live，无法完成 Minecraft 登录。",
+                L.Tr("Auth.Xbox.RegionUnsupported"),
             "2148916236" or "2148916237" =>
-                "该 Microsoft 账户需要完成成人验证后才能使用 Xbox Live。",
+                L.Tr("Auth.Xbox.AdultVerification"),
             "2148916238" =>
-                "该账户是儿童账户，需要由 Microsoft 家庭组织者授权后才能登录。",
+                L.Tr("Auth.Xbox.ChildAccount"),
             "2148916227" =>
-                "该 Xbox 账户已被封禁，无法登录 Minecraft。",
-            _ => $"Xbox Live 验证失败（错误码 {errorCode}），请检查账户状态后重试。"
+                L.Tr("Auth.Xbox.Banned"),
+            _ => L.Format("Auth.Xbox.Generic", errorCode)
         };
 
     private static string Truncate(string value)

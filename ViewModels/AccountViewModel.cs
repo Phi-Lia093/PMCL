@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PMCL.Localization;
 using PMCL.Models;
 using PMCL.Services;
 
@@ -58,9 +59,9 @@ public sealed partial class AccountViewModel : ViewModelBase
 
     public string SavedAccountsSummary => Session.SavedAccounts.Count switch
     {
-        0 => "暂无已保存账户",
-        1 => "1 个已保存账户",
-        var count => $"{count} 个已保存账户"
+        0 => L.Tr("Account.SavedCount.None"),
+        1 => L.Tr("Account.SavedCount.One"),
+        var count => L.Format("Account.SavedCount.Many", count)
     };
 
     public void ReloadSavedAccounts(string? selectAccountId = null)
@@ -100,40 +101,41 @@ public sealed partial class AccountViewModel : ViewModelBase
 
         try
         {
-            Session.BeginBusy("正在获取 Microsoft 登录代码...");
+            Session.BeginBusy(L.Tr("Account.GettingCode"));
             var challenge = await _authentication.BeginMicrosoftDeviceLoginAsync(
                 cancellation.Token);
 
             MicrosoftLoginCode = challenge.UserCode;
             MicrosoftLoginUrl = challenge.VerificationUriComplete;
             MicrosoftLoginHint =
-                $"已打开系统默认浏览器，网页会尝试自动填入代码 {challenge.UserCode}。"
-                + "若页面没有填入，请手动输入该代码；授权成功后启动器会自动完成登录。";
+                L.Format("Account.BrowserOpened", challenge.UserCode);
             IsMicrosoftLoginPending = true;
-            Session.SetStatus("等待 Microsoft 授权...");
+            Session.SetStatus(L.Tr("Account.WaitingAuth"));
 
             if (!SystemBrowserService.TryOpen(
                     challenge.VerificationUriComplete,
                     out var browserError))
             {
-                MicrosoftLoginHint =
-                    $"无法自动打开浏览器（{browserError}）。请手动打开 {challenge.VerificationUri} "
-                    + $"并输入代码 {challenge.UserCode}。";
+                MicrosoftLoginHint = L.Format(
+                    "Account.BrowserOpenFailed",
+                    browserError,
+                    challenge.VerificationUri,
+                    challenge.UserCode);
             }
 
             var result = await _authentication.CompleteMicrosoftDeviceLoginAsync(
                 challenge,
                 cancellation.Token);
-            ApplyLoginResult(result, $"已登录 Microsoft 账户 {result.Account.DisplayName}");
+            ApplyLoginResult(result, L.Format("Account.LoggedIn", result.Account.DisplayName));
             CloseMicrosoftLoginPanel();
         }
         catch (OperationCanceledException)
         {
-            Session.SetStatus("已取消 Microsoft 登录");
+            Session.SetStatus(L.Tr("Account.LoginCancelled"));
         }
         catch (Exception ex)
         {
-            var message = $"Microsoft 登录失败：{ex.Message}";
+            var message = L.Format("Account.LoginFailed", ex.Message);
             Session.SetError(message);
             MicrosoftLoginHint = message;
             IsMicrosoftLoginPending = false;
@@ -155,9 +157,9 @@ public sealed partial class AccountViewModel : ViewModelBase
             return;
 
         if (!SystemBrowserService.TryOpen(MicrosoftLoginUrl, out var error))
-            MicrosoftLoginHint = $"无法打开浏览器（{error}）。请复制链接后手动打开。";
+            MicrosoftLoginHint = L.Format("Account.BrowserOpenFailedHint", error);
         else
-            MicrosoftLoginHint = "已重新打开系统浏览器。授权成功后启动器会自动完成登录。";
+            MicrosoftLoginHint = L.Tr("Account.BrowserReopened");
     }
 
     [RelayCommand]
@@ -166,7 +168,7 @@ public sealed partial class AccountViewModel : ViewModelBase
         _microsoftLoginCancellation?.Cancel();
         _authentication.CancelMicrosoftLogin();
         CloseMicrosoftLoginPanel();
-        Session.SetStatus("已取消 Microsoft 登录");
+        Session.SetStatus(L.Tr("Account.LoginCancelled"));
     }
 
     private void CloseMicrosoftLoginPanel()
@@ -186,18 +188,18 @@ public sealed partial class AccountViewModel : ViewModelBase
         var username = OfflineUsername?.Trim() ?? string.Empty;
         if (username.Length is < 3 or > 16)
         {
-            Session.SetError("离线用户名长度必须为 3 到 16 个字符。");
+            Session.SetError(L.Tr("Account.OfflineNameInvalid"));
             return Task.CompletedTask;
         }
 
         try
         {
             var result = _authentication.AddOrUpdateOfflineAccount(username);
-            ApplyLoginResult(result, $"已使用离线账户 {result.Account.DisplayName}");
+            ApplyLoginResult(result, L.Format("Account.OfflineLoginSuccess", result.Account.DisplayName));
         }
         catch (Exception ex)
         {
-            Session.SetError($"离线登录失败：{ex.Message}");
+            Session.SetError(L.Format("Account.OfflineLoginFailed", ex.Message));
         }
 
         return Task.CompletedTask;
@@ -211,19 +213,19 @@ public sealed partial class AccountViewModel : ViewModelBase
 
         if (string.Equals(account.Id, Session.ActiveAccountId, StringComparison.Ordinal))
         {
-            Session.SetStatus($"{account.DisplayName} 已是当前账户");
+            Session.SetStatus(L.Format("Account.AlreadyCurrent", account.DisplayName));
             return;
         }
 
-        Session.BeginBusy($"正在切换到 {account.DisplayName}...");
+        Session.BeginBusy(L.Format("Account.Switching", account.DisplayName));
         try
         {
             var result = await _authentication.LoginSavedAccountAsync(account.Id);
-            ApplyLoginResult(result, $"已切换到 {result.Account.DisplayName}");
+            ApplyLoginResult(result, L.Format("Account.Switched", result.Account.DisplayName));
         }
         catch (Exception ex)
         {
-            Session.SetError($"切换账户失败：{ex.Message}");
+            Session.SetError(L.Format("Account.SwitchFailed", ex.Message));
         }
         finally
         {
@@ -241,7 +243,7 @@ public sealed partial class AccountViewModel : ViewModelBase
         var wasActive = string.Equals(account.Id, Session.ActiveAccountId, StringComparison.Ordinal);
         if (!_authentication.RemoveAccount(account.Id))
         {
-            Session.SetError("删除账户失败，账户可能已不存在。");
+            Session.SetError(L.Tr("Account.DeleteFailed"));
             ReloadSavedAccounts();
             return;
         }
@@ -252,9 +254,9 @@ public sealed partial class AccountViewModel : ViewModelBase
         _settingsService.SaveSilently(Session.Settings);
         ReloadSavedAccounts();
 
-        var message = $"已删除账户 {account.DisplayName}";
+        var message = L.Format("Account.Deleted", account.DisplayName);
         if (wasActive)
-            message += "，当前已退出该账户";
+            message += L.Tr("Account.DeletedSignedOut");
         Session.SetStatus(message);
     }
 
@@ -271,14 +273,14 @@ public sealed partial class AccountViewModel : ViewModelBase
         Session.ClearAccount();
         _settingsService.SaveSilently(Session.Settings);
         ReloadSavedAccounts();
-        Session.SetStatus($"已退出当前账户 {name}，保存的账户仍可随时切换");
+        Session.SetStatus(L.Format("Account.SignedOut", name));
     }
 
     [RelayCommand]
     private void RefreshSavedAccounts()
     {
         ReloadSavedAccounts(Session.ActiveAccountId);
-        Session.SetStatus($"已加载 {Session.SavedAccounts.Count} 个账户");
+        Session.SetStatus(L.Format("Account.Loaded", Session.SavedAccounts.Count));
     }
 
     /// <summary>
@@ -323,19 +325,19 @@ public sealed partial class AccountViewModel : ViewModelBase
         if (account is null)
         {
             if (Session.Settings.LastAccountKind == nameof(AccountKind.Microsoft))
-                Session.SetStatus("上次使用的 Microsoft 账户已不存在，请重新登录或选择其他账户。");
+                Session.SetStatus(L.Tr("Account.LastMicrosoftMissing"));
             return;
         }
 
-        Session.BeginBusy($"正在恢复账户 {account.DisplayName}...");
+        Session.BeginBusy(L.Format("Account.Restoring", account.DisplayName));
         try
         {
             var result = await _authentication.LoginSavedAccountAsync(account.Id);
-            ApplyLoginResult(result, $"已恢复账户 {result.Account.DisplayName}");
+            ApplyLoginResult(result, L.Format("Account.Restored", result.Account.DisplayName));
         }
         catch (Exception ex)
         {
-            Session.SetStatus($"自动恢复账户失败：{ex.Message}");
+            Session.SetStatus(L.Format("Account.RestoreFailed", ex.Message));
         }
         finally
         {

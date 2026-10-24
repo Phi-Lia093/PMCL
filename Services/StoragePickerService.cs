@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using PMCL.Localization;
 
 namespace PMCL.Services;
 
@@ -42,7 +43,7 @@ public sealed class StoragePickerService
             AllowMultiple = false,
             FileTypeFilter = new[]
             {
-                new FilePickerFileType("Java 可执行文件")
+                new FilePickerFileType(L.Tr("Storage.JavaExecutable"))
                 {
                     Patterns = new[] { "java.exe", "javaw.exe", "java" }
                 }

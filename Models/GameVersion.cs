@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using PMCL.Localization;
 
 namespace PMCL.Models;
 
@@ -43,14 +44,16 @@ public sealed partial class GameVersion : ObservableObject
 
     public string LoaderLabel => LoaderKind switch
     {
-        ModLoaderKind.Vanilla => "原版",
+        ModLoaderKind.Vanilla => L.Tr("Loader.Vanilla"),
         _ when string.IsNullOrWhiteSpace(LoaderVersion) => LoaderKind.ToDisplayName(),
         _ => $"{LoaderKind.ToDisplayName()} {LoaderKind.FormatLoaderVersion(LoaderVersion)}"
     };
 
-    public string LoaderBadge => IsModded ? LoaderLabel : "原版";
+    public string LoaderBadge => IsModded ? LoaderLabel : L.Tr("Loader.Vanilla");
 
-    public string BaseVersionLabel => IsModded ? $"基于 {BaseVersionName}" : "原版版本";
+    public string BaseVersionLabel => IsModded
+        ? L.Format("Version.BasedOn", BaseVersionName)
+        : L.Tr("Version.VanillaVersion");
 
     [ObservableProperty]
     public partial string Name { get; set; }
@@ -62,8 +65,8 @@ public sealed partial class GameVersion : ObservableObject
 
     public string TypeLabel => Type.ToLowerInvariant() switch
     {
-        "release" => "正式版",
-        "snapshot" => "快照",
+        "release" => L.Tr("Version.Type.Release"),
+        "snapshot" => L.Tr("Version.Type.Snapshot"),
         "old_beta" => "Beta",
         "old_alpha" => "Alpha",
         _ => Type

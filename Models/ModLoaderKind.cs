@@ -1,3 +1,5 @@
+using PMCL.Localization;
+
 namespace PMCL.Models;
 
 /// <summary>
@@ -28,6 +30,6 @@ public static class ModLoaderKindExtensions
         ModLoaderKind.Forge => "Forge",
         ModLoaderKind.NeoForge => "NeoForge",
         ModLoaderKind.OptiFine => "OptiFine",
-        _ => "原版"
+        _ => L.Tr("Loader.Vanilla")
     };
 }

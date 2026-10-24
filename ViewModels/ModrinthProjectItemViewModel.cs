@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PMCL.Localization;
 using PMCL.Services;
 
 namespace PMCL.ViewModels;
@@ -23,7 +24,7 @@ public sealed partial class ModrinthProjectItemViewModel : ViewModelBase
     public string Title => string.IsNullOrWhiteSpace(Project.Title) ? Project.Slug : Project.Title;
 
     public string Description => string.IsNullOrWhiteSpace(Project.Description)
-        ? "没有简介。"
+        ? L.Tr("Modrinth.NoDescription")
         : Project.Description;
 
     public string AuthorText => Project.AuthorText;
@@ -33,7 +34,7 @@ public sealed partial class ModrinthProjectItemViewModel : ViewModelBase
     public string VersionSummary => Project.VersionSummary;
 
     public string CategoriesText => Project.Categories.Count == 0
-        ? "未分类"
+        ? L.Tr("Modrinth.Uncategorized")
         : string.Join(" · ", Project.Categories.Take(3));
 
     public IAsyncRelayCommand InstallCommand { get; }
@@ -41,7 +42,9 @@ public sealed partial class ModrinthProjectItemViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool IsInstalling { get; set; }
 
-    public string InstallLabel => IsInstalling ? "正在安装..." : "下载并安装";
+    public string InstallLabel => IsInstalling
+        ? L.Tr("Loader.Installing")
+        : L.Tr("Modrinth.Install");
 
     partial void OnIsInstallingChanged(bool value) => OnPropertyChanged(nameof(InstallLabel));
 }

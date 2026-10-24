@@ -6,6 +6,7 @@ using System.Xml.Linq;
 using CmlLib.Core;
 using CmlLib.Core.Installers;
 using PMCL.Models;
+using PMCL.Localization;
 
 namespace PMCL.Services;
 
@@ -147,7 +148,7 @@ public sealed class ModLoaderService
     private static string RequireLoaderVersion(string? loaderVersion)
     {
         if (string.IsNullOrWhiteSpace(loaderVersion))
-            throw new InvalidOperationException("请选择模组加载器版本。");
+            throw new InvalidOperationException(L.Tr("ML.SelectLoaderVersion"));
         return loaderVersion.Trim();
     }
 
@@ -163,7 +164,7 @@ public sealed class ModLoaderService
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(minecraftVersion))
-            throw new InvalidOperationException("Minecraft 版本不能为空。");
+            throw new InvalidOperationException(L.Tr("ML.MinecraftVersionRequired"));
 
         var versionName = GetVersionName(minecraftVersion, kind, loaderVersion);
         MinecraftService.ValidateVersionName(versionName);
@@ -236,7 +237,7 @@ public sealed class ModLoaderService
                     break;
 
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(kind), kind, "未知的模组加载器。");
+                    throw new ArgumentOutOfRangeException(nameof(kind), kind, L.Tr("ML.UnknownKind"));
             }
 
             _minecraft.WriteLoaderMetadata(
@@ -278,7 +279,7 @@ public sealed class ModLoaderService
             .ConfigureAwait(false);
 
         if (JsonNode.Parse(json) is not JsonObject profile)
-            throw new InvalidDataException("Fabric Meta 返回了无效的版本配置。");
+            throw new InvalidDataException(L.Tr("ML.FabricInvalidProfile"));
 
         profile["id"] = versionName;
         if (_minecraft.DownloadSource == DownloadSourceKind.BmclApi)
@@ -526,7 +527,7 @@ public sealed class ModLoaderService
         if (!match.Success)
         {
             throw new InvalidDataException(
-                "OptiFine 官方下载页没有返回有效的下载链接。");
+                L.Tr("ML.OptiFineNoDownloadLink"));
         }
 
         var relative = WebUtility.HtmlDecode(match.Groups["url"].Value);
@@ -616,7 +617,7 @@ public sealed class ModLoaderService
         }
 
         throw new InvalidOperationException(
-            "下载安装器失败，请检查网络后重试。",
+            L.Tr("ML.DownloadInstallerFailed"),
             lastError);
     }
 
@@ -674,9 +675,9 @@ public sealed class ModLoaderService
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(new ModLoaderCatalogEntry(
             ModLoaderKind.Vanilla,
-            "原版",
-            "只安装 Mojang 原版游戏，不添加模组加载器。",
-            new[] { new ModLoaderVersionOption(minecraftVersion, minecraftVersion, "原版") }));
+            L.Tr("ML.Vanilla"),
+            L.Tr("ML.VanillaDescription"),
+            new[] { new ModLoaderVersionOption(minecraftVersion, minecraftVersion, L.Tr("ML.Vanilla")) }));
     }
 
     private async Task<ModLoaderCatalogEntry> LoadFabricAsync(
@@ -707,7 +708,7 @@ public sealed class ModLoaderService
                 options.Add(new ModLoaderVersionOption(
                     version,
                     version,
-                    stable ? "稳定版" : "测试版",
+                    stable ? L.Tr("ML.Stable") : L.Tr("ML.Beta"),
                     stable));
             }
 
@@ -716,8 +717,8 @@ public sealed class ModLoaderService
                 return Failure(
                     ModLoaderKind.Fabric,
                     "Fabric",
-                    "轻量、更新快的模组加载器。",
-                    "该 Minecraft 版本没有可用的 Fabric Loader。");
+                    L.Tr("ML.FabricShortDescription"),
+                    L.Tr("ML.FabricNoLoader"));
             }
 
             var ordered = options
@@ -727,13 +728,13 @@ public sealed class ModLoaderService
             return new ModLoaderCatalogEntry(
                 ModLoaderKind.Fabric,
                 "Fabric",
-                "轻量、更新快的模组加载器，适合大多数 Fabric 模组。",
+                L.Tr("ML.FabricDescription"),
                 ordered);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             return Failure(ModLoaderKind.Fabric, "Fabric",
-                "轻量、更新快的模组加载器，适合大多数 Fabric 模组。", ex.Message);
+                L.Tr("ML.FabricDescription"), ex.Message);
         }
     }
 
@@ -741,11 +742,11 @@ public sealed class ModLoaderService
         string minecraftVersion,
         CancellationToken cancellationToken)
     {
-        const string description = "传统 Forge 模组加载器，适合大型整合包与旧版本模组。";
+        var description = L.Tr("ML.ForgeDescription");
         if (!IsModernForgeSupported(minecraftVersion))
         {
             return Failure(ModLoaderKind.Forge, "Forge", description,
-                "Forge 自动安装目前支持 Minecraft 1.12.2 及以上版本。");
+                L.Tr("ML.ForgeUnsupportedVersion"));
         }
 
         ModLoaderCatalogEntry first;
@@ -798,14 +799,14 @@ public sealed class ModLoaderService
                 .Select((item, index) => new ModLoaderVersionOption(
                     item.Version,
                     item.Version,
-                    index == 0 ? "最新" : "Forge",
+                    index == 0 ? L.Tr("ML.Latest") : "Forge",
                     index == 0))
                 .ToArray();
 
             return versions.Length > 0
                 ? new ModLoaderCatalogEntry(ModLoaderKind.Forge, "Forge", description, versions)
                 : Failure(ModLoaderKind.Forge, "Forge", description,
-                    "官方 Maven 中没有该 Minecraft 版本的 Forge 安装器。");
+                    L.Tr("ML.ForgeOfficialMissing"));
         }
         catch (Exception ex) when (ex is not OperationCanceledException
                                    || !cancellationToken.IsCancellationRequested)
@@ -845,7 +846,7 @@ public sealed class ModLoaderService
             if (versions.Count == 0)
             {
                 return Failure(ModLoaderKind.Forge, "Forge", description,
-                    "BMCLAPI 中没有该 Minecraft 版本的 Forge 安装器。");
+                    L.Tr("ML.ForgeBmclMissing"));
             }
 
             var ordered = versions
@@ -856,7 +857,7 @@ public sealed class ModLoaderService
                 .Select((item, index) => new ModLoaderVersionOption(
                     item.Version,
                     item.Version,
-                    index == 0 ? "最新" : "Forge",
+                    index == 0 ? L.Tr("ML.Latest") : "Forge",
                     index == 0))
                 .ToArray();
             return new ModLoaderCatalogEntry(ModLoaderKind.Forge, "Forge", description, ordered);
@@ -872,7 +873,7 @@ public sealed class ModLoaderService
         string minecraftVersion,
         CancellationToken cancellationToken)
     {
-        const string description = "NeoForge 是 Forge 的现代分支，适合 1.20.2 及以上的新模组。";
+        var description = L.Tr("ML.NeoForgeDescription");
 
         ModLoaderCatalogEntry first;
         ModLoaderCatalogEntry second;
@@ -923,14 +924,14 @@ public sealed class ModLoaderService
                 .Select((version, index) => new ModLoaderVersionOption(
                     version,
                     version,
-                    index == 0 ? "最新" : "NeoForge",
+                    index == 0 ? L.Tr("ML.Latest") : "NeoForge",
                     index == 0))
                 .ToArray();
 
             return versions.Length > 0
                 ? new ModLoaderCatalogEntry(ModLoaderKind.NeoForge, "NeoForge", description, versions)
                 : Failure(ModLoaderKind.NeoForge, "NeoForge", description,
-                    "官方 Maven 中没有该 Minecraft 版本的 NeoForge。");
+                    L.Tr("ML.NeoForgeOfficialMissing"));
         }
         catch (Exception ex) when (ex is not OperationCanceledException
                                    || !cancellationToken.IsCancellationRequested)
@@ -964,7 +965,7 @@ public sealed class ModLoaderService
             if (versions.Count == 0)
             {
                 return Failure(ModLoaderKind.NeoForge, "NeoForge", description,
-                    "BMCLAPI 中没有该 Minecraft 版本的 NeoForge。");
+                    L.Tr("ML.NeoForgeBmclMissing"));
             }
 
             var ordered = versions
@@ -974,7 +975,7 @@ public sealed class ModLoaderService
                 .Select((version, index) => new ModLoaderVersionOption(
                     version,
                     version,
-                    index == 0 ? "最新" : "NeoForge",
+                    index == 0 ? L.Tr("ML.Latest") : "NeoForge",
                     index == 0))
                 .ToArray();
             return new ModLoaderCatalogEntry(ModLoaderKind.NeoForge, "NeoForge", description, ordered);
@@ -990,7 +991,7 @@ public sealed class ModLoaderService
         string minecraftVersion,
         CancellationToken cancellationToken)
     {
-        const string description = "OptiFine 提供光影、动态光源和性能优化；同一版本只保留一个加载器。";
+        var description = L.Tr("ML.OptiFineDescription");
 
         ModLoaderCatalogEntry first;
         ModLoaderCatalogEntry second;
@@ -1069,7 +1070,7 @@ public sealed class ModLoaderService
             if (options.Count == 0)
             {
                 return Failure(ModLoaderKind.OptiFine, "OptiFine", description,
-                    "OptiFine 官方下载页没有该 Minecraft 版本的稳定版安装包。");
+                    L.Tr("ML.OptiFineNoStableInstaller"));
             }
 
             return new ModLoaderCatalogEntry(
@@ -1131,7 +1132,7 @@ public sealed class ModLoaderService
             if (options.Count == 0)
             {
                 return Failure(ModLoaderKind.OptiFine, "OptiFine", description,
-                    "BMCLAPI 中没有该 Minecraft 版本的 OptiFine 安装包。");
+                    L.Tr("ML.OptiFineBmclMissing"));
             }
 
             return new ModLoaderCatalogEntry(
@@ -1189,8 +1190,8 @@ public sealed class ModLoaderService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         return errors.Length == 0
-            ? "无法获取该加载器的版本列表。"
-            : string.Join("；", errors);
+            ? L.Tr("ML.LoaderVersionsUnavailable")
+            : string.Join(L.Tr("ML.ErrorSeparator"), errors);
     }
 
     private async Task<string> GetStringWithFallbackAsync(
@@ -1215,7 +1216,7 @@ public sealed class ModLoaderService
             }
         }
 
-        throw new InvalidOperationException("无法获取 Fabric Meta 数据。", lastError);
+        throw new InvalidOperationException(L.Tr("ML.FabricMetaUnavailable"), lastError);
     }
 
     private static void RewriteFabricLibraryUrls(JsonObject profile)

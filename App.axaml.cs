@@ -5,6 +5,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using PMCL.Localization;
 using PMCL.Services;
 using PMCL.ViewModels;
 using PMCL.Views;
@@ -29,6 +30,7 @@ public partial class App : Application
             var paths = new AppPaths();
             var settingsService = new SettingsService(paths);
             var settings = settingsService.Load();
+            LocalizationService.Instance.Initialize(settings.Language);
 
             var session = new LauncherSession(settings);
             var authentication = new AuthenticationService(paths);
@@ -63,7 +65,7 @@ public partial class App : Application
                 }
                 catch (Exception ex)
                 {
-                    session.SetError($"启动初始化失败：{ex.Message}");
+                    session.SetError(L.Format("App.InitializeFailed", ex.Message));
                 }
             };
         }
@@ -82,13 +84,13 @@ public partial class App : Application
 
         try
         {
-            var showItem = new NativeMenuItem("显示启动器");
+            var showItem = new NativeMenuItem(L.Tr("Tray.Show"));
             showItem.Click += (_, _) => Dispatcher.UIThread.Post(ShowMainWindow);
 
-            var hideItem = new NativeMenuItem("隐藏到托盘");
+            var hideItem = new NativeMenuItem(L.Tr("Tray.Hide"));
             hideItem.Click += (_, _) => Dispatcher.UIThread.Post(() => _mainWindow?.HideToTray());
 
-            _trayCloseGameItem = new NativeMenuItem("结束游戏")
+            _trayCloseGameItem = new NativeMenuItem(L.Tr("Tray.CloseGame"))
             {
                 IsEnabled = false
             };
@@ -98,7 +100,7 @@ public partial class App : Application
                 session.ShowGameClosePromptCommand.Execute(null);
             });
 
-            var exitItem = new NativeMenuItem("退出 PMCL");
+            var exitItem = new NativeMenuItem(L.Tr("Tray.Exit"));
             exitItem.Click += (_, _) => Dispatcher.UIThread.Post(ExitApplication);
 
             var menu = new NativeMenu();
@@ -120,7 +122,7 @@ public partial class App : Application
 
             session.GameStarted += (_, args) => Dispatcher.UIThread.Post(() =>
             {
-                trayIcon.ToolTipText = $"PMCL - Minecraft {args.VersionName} 运行中";
+                trayIcon.ToolTipText = L.Format("Tray.Running", args.VersionName);
                 if (_trayCloseGameItem is not null)
                     _trayCloseGameItem.IsEnabled = true;
             });
@@ -137,7 +139,7 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"托盘图标初始化失败：{ex}");
+            System.Diagnostics.Debug.WriteLine(L.Format("App.TrayInitFailed", ex));
             _trayIcon = null;
         }
     }

@@ -15,6 +15,7 @@ using CmlLib.Core.Version;
 using CmlLib.Core.VersionLoader;
 using CmlLib.Core.VersionMetadata;
 using PMCL.Models;
+using PMCL.Localization;
 
 namespace PMCL.Services;
 
@@ -260,7 +261,7 @@ public sealed class MinecraftService
             process.ErrorDataReceived += (_, args) => AppendInstallerOutput(output, args.Data);
 
             if (!process.Start())
-                throw new InvalidOperationException("无法启动 OptiFine 安装器。");
+                throw new InvalidOperationException(L.Tr("MC.OptiFineStartFailed"));
 
             process.BeginOutputReadLine();
             process.BeginErrorReadLine();
@@ -284,20 +285,20 @@ public sealed class MinecraftService
                     // Best-effort cleanup.
                 }
 
-                throw new TimeoutException("OptiFine 安装超时。");
+                throw new TimeoutException(L.Tr("MC.OptiFineTimeout"));
             }
 
             if (process.ExitCode != 0)
             {
                 throw new InvalidOperationException(
-                    $"OptiFine 安装器退出码 {process.ExitCode}。{GetOutputTail(output)}");
+                    L.Format("MC.OptiFineExitCode", process.ExitCode, GetOutputTail(output)));
             }
 
             var expectedJson = Path.Combine(path.Versions, versionName, versionName + ".json");
             if (!File.Exists(expectedJson))
             {
                 throw new InvalidOperationException(
-                    $"OptiFine 安装器未生成版本 {versionName}。{GetOutputTail(output)}");
+                    L.Format("MC.OptiFineNoVersion", versionName, GetOutputTail(output)));
             }
 
             InvalidateLauncher(path);
@@ -485,24 +486,24 @@ public sealed class MinecraftService
             return;
 
         if (string.Equals(oldName, newName, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("暂不支持只修改版本名的大小写。");
+            throw new InvalidOperationException(L.Tr("MC.RenameCaseOnly"));
 
         var path = CreatePath(gameDirectory);
         var oldDirectory = Path.Combine(path.Versions, oldName);
         var newDirectory = Path.Combine(path.Versions, newName);
 
         if (!Directory.Exists(oldDirectory))
-            throw new DirectoryNotFoundException($"找不到版本文件夹：{oldDirectory}");
+            throw new DirectoryNotFoundException(L.Format("MC.VersionFolderMissing", oldDirectory));
         if (Directory.Exists(newDirectory) || File.Exists(newDirectory))
-            throw new InvalidOperationException($"版本文件夹 {newName} 已存在。");
+            throw new InvalidOperationException(L.Format("MC.VersionFolderExists", newName));
 
         var oldJsonPath = Path.Combine(oldDirectory, oldName + ".json");
         if (!File.Exists(oldJsonPath))
-            throw new FileNotFoundException($"版本缺少元数据文件：{oldJsonPath}");
+            throw new FileNotFoundException(L.Format("MC.VersionJsonMissing", oldJsonPath));
 
         var originalJson = File.ReadAllText(oldJsonPath);
         if (JsonNode.Parse(originalJson) is not JsonObject metadata)
-            throw new InvalidDataException($"版本元数据格式无效：{oldJsonPath}");
+            throw new InvalidDataException(L.Format("MC.VersionJsonInvalid", oldJsonPath));
 
         Directory.Move(oldDirectory, newDirectory);
 
@@ -552,11 +553,11 @@ public sealed class MinecraftService
         var name = versionName.Trim();
 
         if (name.Length is 0 or > 96)
-            throw new InvalidOperationException("版本名长度必须为 1 到 96 个字符。");
+            throw new InvalidOperationException(L.Tr("MC.NameLengthInvalid"));
         if (name is "." or ".." || name.EndsWith('.') || name.EndsWith(' '))
-            throw new InvalidOperationException("版本名不能以点或空格结尾。");
+            throw new InvalidOperationException(L.Tr("MC.NameDotSpace"));
         if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-            throw new InvalidOperationException("版本名包含文件系统不允许的字符。");
+            throw new InvalidOperationException(L.Tr("MC.NameInvalidChars"));
     }
 
     /// <summary>
@@ -593,7 +594,7 @@ public sealed class MinecraftService
     {
         var versionDirectory = GetVersionDirectory(gameDirectory, versionName);
         if (!Directory.Exists(versionDirectory))
-            throw new DirectoryNotFoundException($"找不到版本文件夹：{versionDirectory}");
+            throw new DirectoryNotFoundException(L.Format("MC.VersionFolderMissing", versionDirectory));
 
         ModLoaderDetector.WriteMetadata(versionDirectory, new ModLoaderMetadata
         {
@@ -615,7 +616,7 @@ public sealed class MinecraftService
             if (!File.Exists(explicitPath))
             {
                 throw new InvalidOperationException(
-                    $"指定的 Java 不存在：{explicitPath}");
+                    L.Format("MC.JavaPathNotExist", explicitPath));
             }
 
             return explicitPath;
@@ -638,8 +639,7 @@ public sealed class MinecraftService
 
         if (string.IsNullOrWhiteSpace(resolved) || !File.Exists(resolved))
         {
-            throw new InvalidOperationException(
-                "未找到可用的 Java。请先在版本设置中指定 Java 可执行文件。");
+            throw new InvalidOperationException(L.Tr("MC.JavaNotFound"));
         }
 
         return resolved;
@@ -669,7 +669,9 @@ public sealed class MinecraftService
             text = output.ToString().Trim();
         }
 
-        return text.Length <= 1200 ? $" 输出：{text}" : $" 输出：...{text[^1200..]}";
+        return text.Length <= 1200
+            ? L.Format("MC.Output", text)
+            : L.Format("MC.OutputTruncated", text[^1200..]);
     }
 
     private static readonly JsonSerializerOptions IndentedJsonOptions = new()

@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:loc="using:PMCL.Localization"
              xmlns:vm="using:PMCL.ViewModels"
              xmlns:models="using:PMCL.Models"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -36,7 +36,7 @@
                     </StackPanel>
                     <Button Grid.Column="2"
                             Classes="secondary"
-                            Content="退出当前账户"
+                            Content="{loc:Tr Account.SignOut}"
                             VerticalAlignment="Center"
                             IsVisible="{Binding Session.HasAccount}"
                             Command="{Binding SignoutCommand}" />
@@ -55,18 +55,18 @@
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Border>
-                            <TextBlock Text="Microsoft 账户"
+                            <TextBlock Text="{loc:Tr Account.Microsoft}"
                                        Classes="h2"
                                        FontSize="16"
                                        VerticalAlignment="Center" />
                         </StackPanel>
-                        <TextBlock Text="通过微软官方设备码登录。登录页在系统默认浏览器中打开，不依赖 WebView2；授权完成后启动器自动登录，无需粘贴回调链接或令牌。"
+                        <TextBlock Text="{loc:Tr Account.MicrosoftHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
 
                         <Button Classes="primary"
                                 HorizontalAlignment="Left"
-                                Content="使用 Microsoft 登录"
+                                Content="{loc:Tr Account.LoginMicrosoft}"
                                 Margin="0,6,0,0"
                                 IsVisible="{Binding !IsMicrosoftLoginPending}"
                                 IsEnabled="{Binding !Session.IsBusy}"
@@ -79,9 +79,9 @@
                                 Padding="14"
                                 IsVisible="{Binding IsMicrosoftLoginPending}">
                             <StackPanel Spacing="10">
-                                <TextBlock Text="在浏览器中完成授权"
+                                <TextBlock Text="{loc:Tr Account.BrowserTitle}"
                                            FontWeight="SemiBold" />
-                                <TextBlock Text="浏览器已打开微软授权页，并会尝试自动填入下面的代码。若页面没有自动填入，请手动输入该代码；授权成功后启动器会自动完成登录。"
+                                <TextBlock Text="{loc:Tr Account.BrowserHint}"
                                            Classes="muted"
                                            TextWrapping="Wrap" />
                                 <Border Background="#101725"
@@ -90,7 +90,7 @@
                                         CornerRadius="10"
                                         Padding="12,8">
                                     <StackPanel Spacing="4">
-                                        <TextBlock Text="登录代码"
+                                        <TextBlock Text="{loc:Tr Account.LoginCode}"
                                                    Classes="muted"
                                                    FontSize="10"
                                                    HorizontalAlignment="Center" />
@@ -104,7 +104,7 @@
                                                  Padding="0" />
                                     </StackPanel>
                                 </Border>
-                                <TextBlock Text="代码约 15 分钟内有效。请不要把代码分享给他人；启动器会自动轮询登录结果，无需再复制任何内容。"
+                                <TextBlock Text="{loc:Tr Account.CodeValidity}"
                                            Classes="muted"
                                            FontSize="10"
                                            TextWrapping="Wrap" />
@@ -116,10 +116,10 @@
                                          IsVisible="{Binding HasMicrosoftLoginUrl}" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button Classes="secondary"
-                                            Content="重新打开浏览器"
+                                            Content="{loc:Tr Account.ReopenBrowser}"
                                             Command="{Binding OpenMicrosoftLoginUrlCommand}" />
                                     <Button Classes="ghost"
-                                            Content="取消"
+                                            Content="{loc:Tr Common.Cancel}"
                                             Command="{Binding CancelMicrosoftLoginCommand}" />
                                 </StackPanel>
                                 <TextBlock Text="{Binding MicrosoftLoginHint}"
@@ -142,20 +142,20 @@
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center" />
                             </Border>
-                            <TextBlock Text="离线账户"
+                            <TextBlock Text="{loc:Tr Account.Offline}"
                                        Classes="h2"
                                        FontSize="16"
                                        VerticalAlignment="Center" />
                         </StackPanel>
-                        <TextBlock Text="无需网络验证，仅适用于单人与局域网游戏。用户名长度为 3 - 16 个字符，添加后会保存在账户列表中。"
+                        <TextBlock Text="{loc:Tr Account.OfflineHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
-                        <TextBox PlaceholderText="输入离线用户名"
+                        <TextBox PlaceholderText="{loc:Tr Account.OfflinePlaceholder}"
                                  Text="{Binding OfflineUsername, Mode=TwoWay}"
                                  MaxLength="16" />
                         <Button Classes="secondary"
                                 HorizontalAlignment="Left"
-                                Content="添加并使用离线账户"
+                                Content="{loc:Tr Account.AddOffline}"
                                 IsEnabled="{Binding !Session.IsBusy}"
                                 Command="{Binding LoginOfflineCommand}" />
                     </StackPanel>
@@ -165,7 +165,7 @@
                 <StackPanel Spacing="12">
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Spacing="3">
-                            <TextBlock Text="已保存账户"
+                            <TextBlock Text="{loc:Tr Account.Saved}"
                                        Classes="h2"
                                        FontSize="16" />
                             <TextBlock Text="{Binding SavedAccountsSummary}"
@@ -173,12 +173,12 @@
                         </StackPanel>
                         <Button Grid.Column="1"
                                 Classes="ghost"
-                                Content="刷新"
+                                Content="{loc:Tr Common.Refresh}"
                                 VerticalAlignment="Center"
                                 Command="{Binding RefreshSavedAccountsCommand}" />
                     </Grid>
 
-                    <TextBlock Text="暂无已保存账户。登录 Microsoft 或添加离线账户后会显示在这里。"
+                    <TextBlock Text="{loc:Tr Account.NoSaved}"
                                Classes="muted"
                                IsVisible="{Binding !HasSavedAccounts}" />
 
@@ -204,7 +204,7 @@
                                                     CornerRadius="6"
                                                     Padding="6,1"
                                                     IsVisible="{Binding IsActive}">
-                                                <TextBlock Text="当前"
+                                                <TextBlock Text="{loc:Tr Account.Current}"
                                                            FontSize="10"
                                                            Foreground="{StaticResource TextPrimaryBrush}" />
                                             </Border>
@@ -239,18 +239,18 @@
 
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <Button Classes="secondary"
-                                Content="使用选中账户"
+                                Content="{loc:Tr Account.UseSelected}"
                                 IsEnabled="{Binding HasSelectedAccount}"
                                 Command="{Binding UseSavedAccountCommand}"
                                 CommandParameter="{Binding SelectedAccount}" />
                         <Button Classes="danger"
-                                Content="删除选中账户"
+                                Content="{loc:Tr Account.DeleteSelected}"
                                 IsEnabled="{Binding HasSelectedAccount}"
                                 Command="{Binding RemoveSavedAccountCommand}"
                                 CommandParameter="{Binding SelectedAccount}" />
                     </StackPanel>
 
-                    <TextBlock Text="Microsoft 账户的刷新令牌仅保存在本机账户文件中。删除账户会同时删除该文件中的登录凭据。"
+                    <TextBlock Text="{loc:Tr Account.CredentialNote}"
                                Classes="muted"
                                FontSize="10"
                                TextWrapping="Wrap" />
@@ -260,4 +260,3 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
-

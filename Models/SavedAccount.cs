@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
+using PMCL.Localization;
 
 namespace PMCL.Models;
 
@@ -62,7 +63,9 @@ public sealed partial class SavedAccount : ObservableObject
         Kind == AccountKind.Microsoft && !string.IsNullOrWhiteSpace(RefreshToken);
 
     [JsonIgnore]
-    public string KindLabel => Kind == AccountKind.Microsoft ? "Microsoft 账户" : "离线账户";
+    public string KindLabel => Kind == AccountKind.Microsoft
+        ? L.Tr("Account.KindMicrosoft")
+        : L.Tr("Account.KindOffline");
 
     [JsonIgnore]
     public string KindBadge => Kind == AccountKind.Microsoft ? "MS" : "OFF";
@@ -79,17 +82,17 @@ public sealed partial class SavedAccount : ObservableObject
 
     [JsonIgnore]
     public string LastAccessText => LastAccess == default
-        ? "从未使用"
+        ? L.Tr("Account.NeverUsed")
         : LastAccess.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
 
     [JsonIgnore]
     public string TokenStateText => Kind == AccountKind.Offline
-        ? "本地账户"
+        ? L.Tr("Account.Local")
         : HasValidMinecraftToken
-            ? "登录有效"
+            ? L.Tr("Account.TokenValid")
             : CanRefreshMicrosoft
-                ? "可自动续期"
-                : "需要重新登录";
+                ? L.Tr("Account.TokenRefreshable")
+                : L.Tr("Account.TokenNeedsLogin");
 
     public static string CreateOfflineUuid(string username)
     {

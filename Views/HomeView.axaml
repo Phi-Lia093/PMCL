@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:loc="using:PMCL.Localization"
              xmlns:vm="using:PMCL.ViewModels"
              xmlns:models="using:PMCL.Models"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -27,10 +27,10 @@
                                    FontWeight="Bold"
                                    LetterSpacing="2.5"
                                    Foreground="#B9A9FF" />
-                        <TextBlock Text="开启你的方块世界"
+                        <TextBlock Text="{loc:Tr Home.HeroTitle}"
                                    Classes="h1"
                                    FontSize="32" />
-                        <TextBlock Text="从版本库下载原版或模组加载器版本，为每个版本独立配置 Java、内存与启动参数。"
+                        <TextBlock Text="{loc:Tr Home.HeroSubtitle}"
                                    Classes="muted"
                                    FontSize="13"
                                    MaxWidth="460"
@@ -73,10 +73,10 @@
                                                      VerticalAlignment="Center"
                                                      IsIndeterminate="True"
                                                      IsVisible="{Binding Session.IsGameStarting}" />
-                                        <TextBlock Text="▶  开始游戏"
+                                        <TextBlock Text="{loc:Tr Home.StartGame}"
                                                    VerticalAlignment="Center"
                                                    IsVisible="{Binding !Session.IsGameStarting}" />
-                                        <TextBlock Text="正在启动…"
+                                        <TextBlock Text="{loc:Tr Home.Starting}"
                                                    VerticalAlignment="Center"
                                                    IsVisible="{Binding Session.IsGameStarting}" />
                                     </StackPanel>
@@ -87,13 +87,13 @@
                                         Content="{Binding Session.GameRunningButtonText}"
                                         Command="{Binding ShowGameSessionCommand}"
                                         IsVisible="{Binding Session.IsGameRunning}"
-                                        ToolTip.Tip="点击查看正在运行的游戏会话" />
+                                        ToolTip.Tip="{loc:Tr Home.RunningTip}" />
                             </Grid>
                         </Grid>
 
                         <StackPanel Orientation="Horizontal" Spacing="10">
                             <Button Classes="secondary"
-                                    Content="版本设置"
+                                    Content="{loc:Tr Home.VersionSettings}"
                                     Command="{Binding OpenVersionSettingsCommand}"
                                     IsEnabled="{Binding Session.CanOpenVersionSettings}" />
                             <TextBlock Classes="muted"
@@ -102,7 +102,7 @@
                             <TextBlock Classes="muted"
                                        VerticalAlignment="Center"
                                        IsVisible="{Binding !Session.HasInstalledVersions}"
-                                       Text="还没有已下载的版本，请先前往「版本库」下载。" />
+                                       Text="{loc:Tr Home.NoVersions}" />
                         </StackPanel>
 
                         <Border IsVisible="{Binding !Session.VersionsLoaded}"
@@ -112,12 +112,12 @@
                                 MaxWidth="560"
                                 HorizontalAlignment="Left">
                             <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock Text="版本列表尚未加载，请检查网络后重试。"
+                                <TextBlock Text="{loc:Tr Home.VersionsNotLoaded}"
                                            Classes="muted"
                                            VerticalAlignment="Center" />
                                 <Button Classes="ghost"
                                         Padding="10,4"
-                                        Content="重新加载"
+                                        Content="{loc:Tr Home.Reload}"
                                         Command="{Binding RefreshVersionsCommand}" />
                             </StackPanel>
                         </Border>
@@ -136,7 +136,7 @@
             <Grid ColumnDefinitions="1.7*,1*">
                 <Border Grid.Column="0" Classes="card" Margin="0,0,8,0">
                     <StackPanel Spacing="14">
-                        <TextBlock Text="当前账户" Classes="h2" FontSize="16" />
+                        <TextBlock Text="{loc:Tr Home.CurrentAccount}" Classes="h2" FontSize="16" />
                         <Grid ColumnDefinitions="Auto,*">
                             <Border Width="52" Height="52"
                                     CornerRadius="26"
@@ -156,42 +156,42 @@
                                 <TextBlock Text="{Binding Session.AccountKindLabel}" Classes="muted" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="Microsoft 正版账户与离线账户都可用于启动游戏。离线账户仅适用于单人和局域网。"
+                        <TextBlock Text="{loc:Tr Home.AccountHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                         <Button Classes="secondary"
                                 HorizontalAlignment="Left"
-                                Content="登录 / 切换账户"
+                                Content="{loc:Tr Home.SwitchAccount}"
                                 Command="{Binding OpenAccountCommand}" />
                     </StackPanel>
                 </Border>
 
                 <Border Grid.Column="1" Classes="card" Margin="8,0,0,0">
                     <StackPanel Spacing="14">
-                        <TextBlock Text="运行环境" Classes="h2" FontSize="16" />
+                        <TextBlock Text="{loc:Tr Home.Environment}" Classes="h2" FontSize="16" />
 
                         <StackPanel Spacing="3">
-                            <TextBlock Text="该版本 Java" Classes="label" Margin="0" />
+                            <TextBlock Text="{loc:Tr Home.VersionJava}" Classes="label" Margin="0" />
                             <TextBlock Text="{Binding Session.SelectedVersionSettings.JavaDisplay}"
                                        FontSize="13"
                                        TextWrapping="Wrap" />
                         </StackPanel>
 
                         <StackPanel Spacing="3">
-                            <TextBlock Text="内存分配" Classes="label" Margin="0" />
+                            <TextBlock Text="{loc:Tr Home.Memory}" Classes="label" Margin="0" />
                             <TextBlock Text="{Binding Session.SelectedVersionSettings.MemoryDisplay}"
                                        FontSize="13" />
                         </StackPanel>
 
                         <StackPanel Spacing="3">
-                            <TextBlock Text="游戏目录" Classes="label" Margin="0" />
+                            <TextBlock Text="{loc:Tr Home.GameDirectory}" Classes="label" Margin="0" />
                             <TextBlock Text="{Binding Session.Settings.GameDirectory}"
                                        Classes="muted"
                                        TextWrapping="Wrap"
                                        MaxLines="2" />
                         </StackPanel>
 
-                        <TextBlock Text="Java、内存、窗口与启动参数现在属于每个版本，请点击「版本设置」调整。"
+                        <TextBlock Text="{loc:Tr Home.EnvironmentHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                     </StackPanel>
@@ -200,4 +200,3 @@
         </StackPanel>
     </ScrollViewer>
 </UserControl>
-

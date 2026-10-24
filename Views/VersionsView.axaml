@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:loc="using:PMCL.Localization"
              xmlns:vm="using:PMCL.ViewModels"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -37,7 +37,7 @@
                            VerticalAlignment="Center" />
                 <Button Grid.Column="1"
                         Classes="secondary"
-                        Content="刷新列表"
+                        Content="{loc:Tr Versions.Refresh}"
                         Command="{Binding RefreshCommand}"
                         IsEnabled="{Binding !Session.IsLoadingVersions}" />
             </Grid>
@@ -45,14 +45,14 @@
             <Border Classes="card" Padding="16">
                 <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
                     <TextBox Grid.Column="0"
-                             PlaceholderText="搜索版本名称，例如 1.21"
+                             PlaceholderText="{loc:Tr Versions.SearchHint}"
                              Text="{Binding SearchText}" />
                     <ComboBox Grid.Column="1"
                               ItemsSource="{Binding TypeFilters}"
                               SelectedIndex="{Binding SelectedTypeIndex}"
                               MinWidth="130" />
                     <CheckBox Grid.Column="2"
-                              Content="仅显示已安装"
+                              Content="{loc:Tr Versions.InstalledOnly}"
                               IsChecked="{Binding ShowInstalledOnly}"
                               VerticalAlignment="Center" />
                 </Grid>
@@ -138,4 +138,3 @@
         </Grid>
     </Grid>
 </UserControl>
-

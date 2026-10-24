@@ -4,7 +4,7 @@
 
 - 名称：PMCL（**P**hilia093's **M**ine**C**raft **L**auncher）
 - 目标：基于 C# / .NET 与 Avalonia 的现代 Minecraft Java 版启动器。
-- 当前能力：官方 / BMCLAPI 下载源切换、原版版本列表 / 下载安装 / 启动、下载百分比与实时速度、Forge / Fabric / NeoForge / OptiFine 模组加载器自动下载安装与互斥管理、版本内模组列表 / 启用 / 禁用 / 删除、Modrinth 模组搜索与下载（按 Minecraft 版本与加载器自动过滤兼容性、自动安装必需前置）、多账户管理（Microsoft / 离线）、Microsoft 设备码系统浏览器登录（含静默恢复与令牌缓存）、账户切换 / 删除、按版本独立配置 Java / 内存 / 窗口 / 登录方式 / 自动进服 / JVM 参数 / 游戏参数 / 启动前命令、强制版本隔离（存档 / 截图 / 模组 / 配置 / 资源包按版本隔离，libraries/assets/runtime 共享）、版本重命名 / 删除 / 补全 / 导出启动脚本、全局游戏目录与语言占位、现代深色 UI。
+- 当前能力：官方 / BMCLAPI 下载源切换、原版版本列表 / 下载安装 / 启动、下载百分比与实时速度、Forge / Fabric / NeoForge / OptiFine 模组加载器自动下载安装与互斥管理、版本内模组列表 / 启用 / 禁用 / 删除、Modrinth 模组搜索与下载（按 Minecraft 版本与加载器自动过滤兼容性、自动安装必需前置）、多账户管理（Microsoft / 离线）、Microsoft 设备码系统浏览器登录（含静默恢复与令牌缓存）、账户切换 / 删除、按版本独立配置 Java / 内存 / 窗口 / 登录方式 / 自动进服 / JVM 参数 / 游戏参数 / 启动前命令、强制版本隔离（存档 / 截图 / 模组 / 配置 / 资源包按版本隔离，libraries/assets/runtime 共享）、版本重命名 / 删除 / 补全 / 导出启动脚本、全局游戏目录与多语言（简体中文 / English，JSON 词条）、现代深色 UI。
 - 当前版本：`0.1.0`（见 `PMCL.csproj`）。
 
 ## 2. 技术栈
@@ -43,6 +43,13 @@ D:\PMCL
 ├─ Program.cs                    # Avalonia AppBuilder 入口
 ├─ ViewLocator.cs                # ViewModel -> View 约定映射
 ├─ PMCL.csproj
+├─ Assets/i18n/
+│  ├─ zh-CN.json                 # 简体中文词条（默认语言）
+│  └─ en-US.json                 # English 词条（键必须与 zh-CN 完全一致）
+├─ Localization/
+│  ├─ LocalizationService.cs     # 语言词条加载、缺失回退、语言切换事件
+│  ├─ L.cs                       # 代码侧 `L.Tr` / `L.Format` 快捷入口
+│  └─ TrExtension.cs             # XAML `{loc:Tr Key.Name}` 标记扩展
 ├─ Models/
 │  ├─ AccountKind.cs             # Microsoft / Offline
 │  ├─ AccountProfile.cs          # 当前账户 UI 模型
@@ -84,7 +91,7 @@ D:\PMCL
 │  ├─ ModrinthProjectItemViewModel.cs # Modrinth 搜索结果行与安装命令
 │  ├─ AccountViewModel.cs        # 多账户列表、设备码登录、切换 / 删除 / 自动恢复
 │  ├─ VersionSettingsViewModel.cs# 版本设置页（启动参数、模组管理、Modrinth）
-│  ├─ SettingsViewModel.cs       # 全局设置页（游戏目录、语言占位）
+│  ├─ SettingsViewModel.cs       # 全局设置页（游戏目录、语言切换）
 │  └─ VersionItemViewModel.cs    # 列表项（筛选用）
 └─ Views/
    ├─ MainWindow.axaml(.cs)      # 侧边导航 + 页头 + 内容宿主 + 全局遮罩
@@ -133,7 +140,13 @@ D:\PMCL
    - 类：`card`、`h1`、`h2`、`muted`、`label`、`primary`、`secondary`、`ghost`、`danger`、`icon`、`nav`、`nav.active`
    - 不要在页面里重复定义全局颜色；页面特有的渐变 / 半透明色可以内联。
 8. **Avalonia 12 注意**：`TextBox` 使用 `PlaceholderText`（`Watermark` 已废弃）；`ListBox` 没有 `HorizontalContentAlignment`，需在 `ListBoxItem` 样式中设置。
-9. **语言**：界面文案使用简体中文；代码注释与标识符使用英文。
+9. **语言 / 国际化**：界面文案一律通过 JSON 词条渲染，禁止在 C# 或 XAML 里写死中文（或英文）界面字符串。
+   - XAML：`{loc:Tr Section.Key}`（`xmlns:loc="using:PMCL.Localization"`）。
+   - 代码：`L.Tr("Section.Key")`，带占位符用 `L.Format("Section.Key", ...)`，`{0}` 为参数位。
+   - 词条文件：`Assets/i18n/zh-CN.json`（默认）与 `en-US.json`；新增键必须同时写入两份文件，键名保持完全一致，缺失键会回退默认语言再回退键名本身。
+   - 键名按功能前缀分组：`App`、`Nav`、`Home`、`Versions`、`Version`、`Settings`、`Account`、`Loader`、`Mod`、`Modrinth`（`MR`）、`Launch`、`Auth`、`OAuth`、`MC`、`ML`、`Storage`、`Browser`、`Status`、`Tray`、`Page`。
+   - 语言名称本身（如 `简体中文`）不翻译，保持母语写法，方便用户找到自己的语言。
+   - 代码注释与标识符仍使用英文。
 
 ## 7. 关键流程
 

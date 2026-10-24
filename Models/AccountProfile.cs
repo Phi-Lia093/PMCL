@@ -1,3 +1,5 @@
+using PMCL.Localization;
+
 namespace PMCL.Models;
 
 /// <summary>
@@ -30,15 +32,17 @@ public sealed class AccountProfile
 
     public string? Gamertag { get; }
 
-    public string KindLabel => Kind == AccountKind.Microsoft ? "Microsoft 账户" : "离线账户";
+    public string KindLabel => Kind == AccountKind.Microsoft
+        ? L.Tr("Account.KindMicrosoft")
+        : L.Tr("Account.KindOffline");
 
     public string Initial => string.IsNullOrWhiteSpace(Username)
         ? "?"
         : Username[..1].ToUpperInvariant();
 
     public string Detail => Kind == AccountKind.Microsoft && !string.IsNullOrWhiteSpace(Gamertag)
-        ? $"Xbox：{Gamertag}"
+        ? L.Format("Account.XboxDetail", Gamertag)
         : string.IsNullOrWhiteSpace(Uuid)
             ? KindLabel
-            : $"UUID：{Uuid}";
+            : L.Format("Account.UuidDetail", Uuid);
 }

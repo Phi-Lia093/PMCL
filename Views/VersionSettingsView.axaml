@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:loc="using:PMCL.Localization"
              xmlns:vm="using:PMCL.ViewModels"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -14,7 +14,7 @@
             <Border Classes="card" Padding="18">
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
                     <Button Classes="secondary"
-                            Content="← 返回"
+                            Content="{loc:Tr Common.Back}"
                             VerticalAlignment="Center"
                             Command="{Binding BackCommand}" />
 
@@ -54,7 +54,7 @@
                                    Classes="muted"
                                    VerticalAlignment="Center" />
                         <Button Classes="primary"
-                                Content="保存设置"
+                                Content="{loc:Tr VersionSettings.Save}"
                                 Padding="20,9"
                                 IsEnabled="{Binding !Session.IsBusy}"
                                 Command="{Binding SaveCommand}" />
@@ -67,25 +67,25 @@
                     <Button Classes="nav"
                             Classes.active="{Binding IsSettingsSection}"
                             Padding="18,8"
-                            Content="设置"
+                            Content="{loc:Tr Tab.Settings}"
                             Command="{Binding SelectSectionCommand}"
                             CommandParameter="Settings" />
                     <Button Classes="nav"
                             Classes.active="{Binding IsModsSection}"
                             Padding="18,8"
-                            Content="模组"
+                            Content="{loc:Tr Tab.Mods}"
                             Command="{Binding SelectSectionCommand}"
                             CommandParameter="Mods" />
                     <Button Classes="nav"
                             Classes.active="{Binding IsModDownloadsSection}"
                             Padding="18,8"
-                            Content="模组下载"
+                            Content="{loc:Tr Tab.Modrinth}"
                             Command="{Binding SelectSectionCommand}"
                             CommandParameter="ModDownloads" />
                     <Button Classes="nav"
                             Classes.active="{Binding IsAdvancedSection}"
                             Padding="18,8"
-                            Content="高级"
+                            Content="{loc:Tr Tab.Advanced}"
                             Command="{Binding SelectSectionCommand}"
                             CommandParameter="Advanced" />
                 </StackPanel>
@@ -93,20 +93,20 @@
 
             <Border Classes="card" IsVisible="{Binding IsSettingsSection}">
                 <StackPanel Spacing="14">
-                    <TextBlock Text="版本信息" Classes="h2" FontSize="16" />
+                    <TextBlock Text="{loc:Tr VS.VersionInfo}" Classes="h2" FontSize="16" />
 
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <StackPanel Spacing="6">
-                            <TextBlock Text="版本名" Classes="label" />
+                            <TextBlock Text="{loc:Tr VS.VersionName}" Classes="label" />
                             <TextBox Text="{Binding NewVersionName}"
                                      IsEnabled="{Binding !Session.IsBusy}" />
-                            <TextBlock Text="重命名会同时修改版本文件夹、版本 json 与同名 jar 文件名。"
+                            <TextBlock Text="{loc:Tr VS.RenameHint}"
                                        Classes="muted"
                                        TextWrapping="Wrap" />
                         </StackPanel>
                         <Button Grid.Column="1"
                                 Classes="secondary"
-                                Content="重命名"
+                                Content="{loc:Tr VS.Rename}"
                                 VerticalAlignment="Bottom"
                                 IsEnabled="{Binding !Session.IsBusy}"
                                 Command="{Binding RenameVersionCommand}" />
@@ -118,13 +118,13 @@
                 <StackPanel Spacing="14">
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Spacing="3">
-                            <TextBlock Text="快捷操作" Classes="h2" FontSize="16" />
-                            <TextBlock Text="所有文件夹都会在 Windows 资源管理器中打开。"
+                            <TextBlock Text="{loc:Tr VS.QuickActions}" Classes="h2" FontSize="16" />
+                            <TextBlock Text="{loc:Tr VS.QuickActionsHint}"
                                        Classes="muted" />
                         </StackPanel>
                         <Button Grid.Column="1"
                                 Classes="secondary"
-                                Content="补全文件"
+                                Content="{loc:Tr VS.CompleteFiles}"
                                 VerticalAlignment="Center"
                                 IsEnabled="{Binding !Session.IsBusy}"
                                 Command="{Binding RepairCommand}" />
@@ -133,28 +133,28 @@
                     <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
                         <Button Grid.Column="0"
                                 Classes="secondary"
-                                Content="打开版本文件夹"
+                                Content="{loc:Tr VS.OpenVersionFolder}"
                                 HorizontalAlignment="Stretch"
                                 Command="{Binding OpenVersionFolderCommand}" />
                         <Button Grid.Column="1"
                                 Classes="secondary"
-                                Content="打开存档文件夹"
+                                Content="{loc:Tr VS.OpenSaves}"
                                 HorizontalAlignment="Stretch"
                                 Command="{Binding OpenSavesFolderCommand}" />
                         <Button Grid.Column="2"
                                 Classes="secondary"
-                                Content="打开截图文件夹"
+                                Content="{loc:Tr VS.OpenScreenshots}"
                                 HorizontalAlignment="Stretch"
                                 Command="{Binding OpenScreenshotsFolderCommand}" />
                     </Grid>
 
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                         <Button Classes="secondary"
-                                Content="导出启动脚本"
+                                Content="{loc:Tr VS.ExportScript}"
                                 IsEnabled="{Binding !Session.IsBusy}"
                                 Command="{Binding ExportLaunchScriptCommand}" />
                         <TextBlock Grid.Column="1"
-                                   Text="脚本包含当前登录令牌与完整启动参数，请妥善保管。"
+                                   Text="{loc:Tr VS.ExportScriptHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap"
                                    VerticalAlignment="Center" />
@@ -165,14 +165,14 @@
             <Border Classes="card" IsVisible="{Binding IsAdvancedSection}">
                 <StackPanel Spacing="14">
                     <StackPanel Spacing="3">
-                        <TextBlock Text="游戏数据目录（自动隔离）" Classes="h2" FontSize="16" />
-                        <TextBlock Text="每个版本都有独立的游戏目录：存档、截图、mods、config、resourcepacks、shaderpacks 与 options.txt 都保存在这里，模组不会串到其它版本；libraries、assets 与 runtime 仍共享，不会重复下载。"
+                        <TextBlock Text="{loc:Tr VS.GameData}" Classes="h2" FontSize="16" />
+                        <TextBlock Text="{loc:Tr VS.GameDataHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                     </StackPanel>
 
                     <StackPanel Spacing="6">
-                        <TextBlock Text="当前游戏目录" Classes="label" />
+                        <TextBlock Text="{loc:Tr VS.CurrentGameDir}" Classes="label" />
                         <Border Background="{StaticResource FieldBrush}"
                                 BorderBrush="#263045"
                                 BorderThickness="1"
@@ -188,27 +188,27 @@
                         <Button Grid.Column="0"
                                 Classes="secondary"
                                 HorizontalAlignment="Stretch"
-                                Content="打开游戏目录"
+                                Content="{loc:Tr VS.OpenGameDir}"
                                 Command="{Binding OpenGameFolderCommand}" />
                         <Button Grid.Column="1"
                                 Classes="secondary"
                                 HorizontalAlignment="Stretch"
-                                Content="打开 mods"
+                                Content="{loc:Tr VS.OpenMods}"
                                 Command="{Binding OpenModsFolderCommand}" />
                         <Button Grid.Column="2"
                                 Classes="secondary"
                                 HorizontalAlignment="Stretch"
-                                Content="打开 config"
+                                Content="{loc:Tr VS.OpenConfig}"
                                 Command="{Binding OpenConfigFolderCommand}" />
                     </Grid>
 
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
                         <Button Classes="secondary"
-                                Content="导入旧共享数据"
+                                Content="{loc:Tr VS.ImportShared}"
                                 IsEnabled="{Binding CanImportSharedData}"
                                 Command="{Binding ImportSharedDataCommand}" />
                         <TextBlock Grid.Column="1"
-                                   Text="用于从旧版共享布局迁移：把共享 .minecraft 中的 存档、截图、mods、config、resourcepacks、shaderpacks 与 options.txt 复制到本版本（只复制、不移动，且不覆盖同名文件）。"
+                                   Text="{loc:Tr VS.ImportSharedHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap"
                                    VerticalAlignment="Center" />
@@ -218,7 +218,7 @@
 
             <Border Classes="card" IsVisible="{Binding IsModLoaderCardVisible}">
                 <StackPanel Spacing="14">
-                    <TextBlock Text="模组加载器" Classes="h2" FontSize="16" />
+                    <TextBlock Text="{loc:Tr VS.ModLoader}" Classes="h2" FontSize="16" />
 
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <StackPanel Spacing="4" VerticalAlignment="Center">
@@ -235,28 +235,28 @@
                                     Spacing="8"
                                     VerticalAlignment="Center">
                             <Button Classes="secondary"
-                                    Content="添加模组加载器"
+                                    Content="{loc:Tr VS.AddLoader}"
                                     IsVisible="{Binding IsVanillaVersion}"
                                     IsEnabled="{Binding !Session.IsBusy}"
                                     Command="{Binding AddOrChangeLoaderCommand}" />
                             <Button Classes="secondary"
-                                    Content="更换模组加载器"
+                                    Content="{loc:Tr VS.ChangeLoader}"
                                     IsVisible="{Binding HasModLoader}"
                                     IsEnabled="{Binding !Session.IsBusy}"
                                     Command="{Binding AddOrChangeLoaderCommand}" />
                             <Button Classes="danger"
-                                    Content="移除模组加载器"
+                                    Content="{loc:Tr VS.RemoveLoader}"
                                     IsVisible="{Binding HasModLoader}"
                                     IsEnabled="{Binding !Session.IsBusy}"
                                     Command="{Binding RequestRemoveLoaderCommand}" />
                         </StackPanel>
                     </Grid>
 
-                    <TextBlock Text="已安装的模组加载器会作为独立版本显示在主页；选择该加载器版本后，可在版本设置中更换或移除。"
+                    <TextBlock Text="{loc:Tr VS.LoaderHint}"
                                Classes="muted"
                                TextWrapping="Wrap" />
 
-                    <TextBlock Text="同一 Minecraft 版本只保留一个模组加载器。添加或更换会自动下载对应加载器，并替换旧的加载器版本；该版本的存档、截图与模组会先迁移到新加载器，不会随旧版本删除。移除加载器后会把数据合并回原版版本，版本设置会尽量保留。"
+                    <TextBlock Text="{loc:Tr VS.LoaderMutexHint}"
                                Classes="muted"
                                TextWrapping="Wrap" />
 
@@ -267,15 +267,15 @@
                             CornerRadius="10"
                             Padding="14">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="确定移除此模组加载器吗？只会删除加载器版本文件夹，原版版本和共享游戏文件会保留。"
+                            <TextBlock Text="{loc:Tr VS.RemoveLoaderConfirm}"
                                        TextWrapping="Wrap" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button Classes="danger"
-                                        Content="确认移除"
+                                        Content="{loc:Tr VS.ConfirmRemove}"
                                         IsEnabled="{Binding !Session.IsBusy}"
                                         Command="{Binding ConfirmRemoveLoaderCommand}" />
                                 <Button Classes="secondary"
-                                        Content="取消"
+                                        Content="{loc:Tr Common.Cancel}"
                                         Command="{Binding CancelRemoveLoaderCommand}" />
                             </StackPanel>
                         </StackPanel>
@@ -287,26 +287,26 @@
                 <StackPanel Spacing="14">
                     <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                         <StackPanel Spacing="3">
-                            <TextBlock Text="已安装模组" Classes="h2" FontSize="16" />
+                            <TextBlock Text="{loc:Tr VS.InstalledMods}" Classes="h2" FontSize="16" />
                             <TextBlock Text="{Binding ModsDirectory}"
                                        Classes="muted"
                                        TextTrimming="CharacterEllipsis" />
                         </StackPanel>
                         <Button Grid.Column="1"
                                 Classes="secondary"
-                                Content="刷新"
+                                Content="{loc:Tr Common.Refresh}"
                                 Command="{Binding RefreshModsCommand}" />
                         <Button Grid.Column="2"
                                 Classes="secondary"
-                                Content="打开 mods"
+                                Content="{loc:Tr VS.OpenMods}"
                                 Command="{Binding OpenModsFolderCommand}" />
                     </Grid>
 
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <TextBox Text="{Binding LocalModSearchText}"
-                                 PlaceholderText="搜索本地模组文件名" />
+                                 PlaceholderText="{loc:Tr VS.SearchMods}" />
                         <CheckBox Grid.Column="1"
-                                  Content="显示已禁用"
+                                  Content="{loc:Tr VS.ShowDisabled}"
                                   IsChecked="{Binding ShowDisabledMods}"
                                   VerticalAlignment="Center" />
                     </Grid>
@@ -321,7 +321,7 @@
                             BorderThickness="1"
                             CornerRadius="10"
                             Padding="14">
-                        <TextBlock Text="没有找到模组文件。把手动下载的 .jar 放进 mods 文件夹，或使用下方 Modrinth 搜索。"
+                        <TextBlock Text="{loc:Tr VS.NoMods}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                     </Border>
@@ -371,7 +371,7 @@
                                                         Command="{Binding ToggleCommand}" />
                                                 <Button Classes="danger"
                                                         Padding="12,7"
-                                                        Content="删除"
+                                                        Content="{loc:Tr Common.Delete}"
                                                         IsVisible="{Binding !IsDeleteConfirmVisible}"
                                                         Command="{Binding RequestDeleteCommand}" />
                                             </StackPanel>
@@ -384,19 +384,19 @@
                                                 CornerRadius="8"
                                                 Padding="10">
                                             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                                                <TextBlock Text="删除后无法恢复，确定继续吗？"
+                                                <TextBlock Text="{loc:Tr VS.DeleteModConfirm}"
                                                            FontSize="12"
                                                            TextWrapping="Wrap"
                                                            VerticalAlignment="Center" />
                                                 <Button Grid.Column="1"
                                                         Classes="danger"
                                                         Padding="12,6"
-                                                        Content="确认删除"
+                                                        Content="{loc:Tr VS.ConfirmDelete}"
                                                         Command="{Binding ConfirmDeleteCommand}" />
                                                 <Button Grid.Column="2"
                                                         Classes="secondary"
                                                         Padding="12,6"
-                                                        Content="取消"
+                                                        Content="{loc:Tr Common.Cancel}"
                                                         Command="{Binding CancelDeleteCommand}" />
                                             </Grid>
                                         </Border>
@@ -411,7 +411,7 @@
             <Border Classes="card" IsVisible="{Binding IsModDownloadsSection}">
                 <StackPanel Spacing="14">
                     <StackPanel Spacing="3">
-                        <TextBlock Text="从 Modrinth 下载模组" Classes="h2" FontSize="16" />
+                        <TextBlock Text="{loc:Tr VS.ModrinthTitle}" Classes="h2" FontSize="16" />
                         <TextBlock Text="{Binding ModrinthCompatibilityText}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
@@ -419,7 +419,7 @@
 
                     <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
                         <StackPanel Spacing="6">
-                            <TextBlock Text="模组类型" Classes="muted" FontSize="12" />
+                            <TextBlock Text="{loc:Tr VS.ModType}" Classes="muted" FontSize="12" />
                             <ComboBox ItemsSource="{Binding ModrinthCategoryOptions}"
                                       SelectedIndex="{Binding SelectedModrinthCategoryIndex}"
                                       IsEnabled="{Binding CanUseModrinth}">
@@ -431,20 +431,20 @@
                             </ComboBox>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Spacing="6">
-                            <TextBlock Text="下载源" Classes="muted" FontSize="12" />
+                            <TextBlock Text="{loc:Tr VS.DownloadSource}" Classes="muted" FontSize="12" />
                             <ComboBox ItemsSource="{Binding ModrinthSourceOptions}"
                                       SelectedIndex="{Binding SelectedModrinthSourceIndex}" />
                         </StackPanel>
                     </Grid>
 
-                    <TextBlock Text="该下载源尚未接入，当前仅支持 Modrinth。"
+                    <TextBlock Text="{loc:Tr VS.SourceUnsupported}"
                                Classes="muted"
                                TextWrapping="Wrap"
                                IsVisible="{Binding !IsModrinthSourceSelected}" />
 
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <TextBox Text="{Binding ModrinthSearchText}"
-                                 PlaceholderText="搜索 Modrinth 模组；留空显示热门兼容模组"
+                                 PlaceholderText="{loc:Tr VS.ModrinthSearchHint}"
                                  IsEnabled="{Binding CanUseModrinth}" />
                         <Button Grid.Column="1"
                                 Classes="primary"
@@ -508,7 +508,7 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
 
-                    <TextBlock Text="安装时会自动选择与当前 Minecraft 版本和加载器兼容的最新文件，并递归下载所有必需的前置模组；同名文件不会覆盖。可选前置模组请按需手动安装。"
+                    <TextBlock Text="{loc:Tr VS.ModrinthHint}"
                                Classes="muted"
                                TextWrapping="Wrap" />
                 </StackPanel>
@@ -518,23 +518,23 @@
                   IsVisible="{Binding IsSettingsSection}">
                 <Border Grid.Column="0" Classes="card">
                     <StackPanel Spacing="14">
-                        <TextBlock Text="Java 与内存" Classes="h2" FontSize="16" />
+                        <TextBlock Text="{loc:Tr VS.JavaMemory}" Classes="h2" FontSize="16" />
 
                         <StackPanel Spacing="6">
-                            <TextBlock Text="Java 可执行文件" Classes="label" />
+                            <TextBlock Text="{loc:Tr VS.JavaPath}" Classes="label" />
                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                 <TextBox Grid.Column="0"
                                          Text="{Binding JavaPath}"
-                                         PlaceholderText="留空则自动检测" />
+                                         PlaceholderText="{loc:Tr VS.JavaPlaceholder}" />
                                 <Button Grid.Column="1"
                                         Classes="secondary"
-                                        Content="浏览"
+                                        Content="{loc:Tr Common.Browse}"
                                         Command="{Binding BrowseJavaCommand}" />
                             </Grid>
                             <StackPanel Orientation="Horizontal" Spacing="10">
                                 <Button Classes="ghost"
                                         Padding="0,4"
-                                        Content="清除路径"
+                                        Content="{loc:Tr Common.ClearPath}"
                                         Command="{Binding ClearJavaPathCommand}" />
                                 <TextBlock Text="{Binding DetectedJavaText}"
                                            Classes="muted"
@@ -545,14 +545,14 @@
 
                         <Grid ColumnDefinitions="1*,1*" ColumnSpacing="12">
                             <StackPanel Grid.Column="0" Spacing="6">
-                                <TextBlock Text="最小内存 (MB)" Classes="label" />
+                                <TextBlock Text="{loc:Tr VS.MinMemory}" Classes="label" />
                                 <NumericUpDown Value="{Binding MinimumRamMb}"
                                                Minimum="256" Maximum="65536"
                                                Increment="512"
                                                FormatString="0" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Spacing="6">
-                                <TextBlock Text="最大内存 (MB)" Classes="label" />
+                                <TextBlock Text="{loc:Tr VS.MaxMemory}" Classes="label" />
                                 <NumericUpDown Value="{Binding MaximumRamMb}"
                                                Minimum="256" Maximum="65536"
                                                Increment="512"
@@ -562,14 +562,14 @@
 
                         <Grid ColumnDefinitions="1*,1*" ColumnSpacing="12">
                             <StackPanel Grid.Column="0" Spacing="6">
-                                <TextBlock Text="窗口宽度" Classes="label" />
+                                <TextBlock Text="{loc:Tr VS.WindowWidth}" Classes="label" />
                                 <NumericUpDown Value="{Binding WindowWidth}"
                                                Minimum="854" Maximum="7680"
                                                Increment="10"
                                                FormatString="0" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Spacing="6">
-                                <TextBlock Text="窗口高度" Classes="label" />
+                                <TextBlock Text="{loc:Tr VS.WindowHeight}" Classes="label" />
                                 <NumericUpDown Value="{Binding WindowHeight}"
                                                Minimum="480" Maximum="4320"
                                                Increment="10"
@@ -577,42 +577,42 @@
                             </StackPanel>
                         </Grid>
 
-                        <CheckBox Content="全屏启动游戏"
+                        <CheckBox Content="{loc:Tr VS.FullScreen}"
                                   IsChecked="{Binding FullScreen}" />
                     </StackPanel>
                 </Border>
 
                 <Border Grid.Column="1" Classes="card">
                     <StackPanel Spacing="14">
-                        <TextBlock Text="登录与服务器" Classes="h2" FontSize="16" />
+                        <TextBlock Text="{loc:Tr VS.LoginServer}" Classes="h2" FontSize="16" />
 
                         <StackPanel Spacing="6">
-                            <TextBlock Text="登录方式" Classes="label" />
+                            <TextBlock Text="{loc:Tr VS.LoginMode}" Classes="label" />
                             <ComboBox ItemsSource="{Binding LoginModes}"
                                       SelectedIndex="{Binding SelectedLoginModeIndex, Mode=TwoWay}" />
-                            <TextBlock Text="「当前账户」复用账户页的登录；Microsoft 模式要求当前已登录微软账户。"
+                            <TextBlock Text="{loc:Tr VS.LoginModeHint}"
                                        Classes="muted"
                                        TextWrapping="Wrap" />
                         </StackPanel>
 
                         <StackPanel Spacing="6" IsVisible="{Binding IsOfflineLogin}">
-                            <TextBlock Text="该版本的离线用户名" Classes="label" />
+                            <TextBlock Text="{loc:Tr VS.OfflineUsername}" Classes="label" />
                             <TextBox Text="{Binding OfflineUsername}"
-                                     PlaceholderText="留空则使用全局离线用户名" />
+                                     PlaceholderText="{loc:Tr VS.OfflineUsernameHint}" />
                         </StackPanel>
 
-                        <CheckBox Content="启动后自动进入服务器"
+                        <CheckBox Content="{loc:Tr VS.AutoJoin}"
                                   IsChecked="{Binding AutoJoinServer}" />
 
                         <Grid ColumnDefinitions="*,120" ColumnSpacing="10"
                               IsEnabled="{Binding AutoJoinServer}">
                             <StackPanel Grid.Column="0" Spacing="6">
-                                <TextBlock Text="服务器地址" Classes="label" />
+                                <TextBlock Text="{loc:Tr VS.ServerAddress}" Classes="label" />
                                 <TextBox Text="{Binding ServerAddress}"
-                                         PlaceholderText="例如 play.example.com" />
+                                         PlaceholderText="{loc:Tr VS.ServerPlaceholder}" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Spacing="6">
-                                <TextBlock Text="端口" Classes="label" />
+                                <TextBlock Text="{loc:Tr VS.Port}" Classes="label" />
                                 <NumericUpDown Value="{Binding ServerPort}"
                                                Minimum="1" Maximum="65535"
                                                Increment="1"
@@ -620,7 +620,7 @@
                             </StackPanel>
                         </Grid>
 
-                        <TextBlock Text="地址支持域名或 IP；默认端口为 25565。"
+                        <TextBlock Text="{loc:Tr VS.ServerHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                     </StackPanel>
@@ -630,35 +630,35 @@
             <Border Classes="card" IsVisible="{Binding IsAdvancedSection}">
                 <StackPanel Spacing="14">
                     <StackPanel Spacing="3">
-                        <TextBlock Text="高级启动参数" Classes="h2" FontSize="16" />
-                        <TextBlock Text="参数会原样附加到 CmlLib 生成的 Java 命令行中，支持引号包裹带空格的参数。"
+                        <TextBlock Text="{loc:Tr VS.AdvancedArgs}" Classes="h2" FontSize="16" />
+                        <TextBlock Text="{loc:Tr VS.AdvancedArgsHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                     </StackPanel>
 
                     <StackPanel Spacing="6">
-                        <TextBlock Text="JVM 参数" Classes="label" />
+                        <TextBlock Text="{loc:Tr VS.JvmArgs}" Classes="label" />
                         <TextBox Text="{Binding JvmArguments}"
                                  AcceptsReturn="True"
                                  MinHeight="70"
                                  TextWrapping="Wrap"
-                                 PlaceholderText="例如 -XX:+UseG1GC -XX:MaxGCPauseMillis=50" />
+                                 PlaceholderText="{loc:Tr VS.JvmPlaceholder}" />
                     </StackPanel>
 
                     <StackPanel Spacing="6">
-                        <TextBlock Text="游戏参数" Classes="label" />
+                        <TextBlock Text="{loc:Tr VS.GameArgs}" Classes="label" />
                         <TextBox Text="{Binding GameArguments}"
                                  AcceptsReturn="True"
                                  MinHeight="70"
                                  TextWrapping="Wrap"
-                                 PlaceholderText="例如 --width 1920 --height 1080" />
+                                 PlaceholderText="{loc:Tr VS.GameArgsPlaceholder}" />
                     </StackPanel>
 
                     <StackPanel Spacing="6">
-                        <TextBlock Text="启动前执行命令" Classes="label" />
+                        <TextBlock Text="{loc:Tr VS.PreLaunch}" Classes="label" />
                         <TextBox Text="{Binding PreLaunchCommand}"
-                                 PlaceholderText="例如 startTools.exe --prepare" />
-                        <TextBlock Text="在游戏目录下通过 cmd.exe 执行并等待结束；非 0 退出码会阻止启动。支持占位符 {gameDir}、{versionDir}、{version}，也可使用环境变量 PMCL_GAME_DIR、PMCL_VERSION_DIR、PMCL_VERSION。"
+                                 PlaceholderText="{loc:Tr VS.PreLaunchPlaceholder}" />
+                        <TextBlock Text="{loc:Tr VS.PreLaunchHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                     </StackPanel>
@@ -668,7 +668,7 @@
 
             <Border Classes="card" IsVisible="{Binding IsAdvancedSection}">
                 <StackPanel Spacing="12">
-                    <TextBlock Text="危险操作"
+                    <TextBlock Text="{loc:Tr VS.Danger}"
                                Classes="h2"
                                FontSize="16"
                                Foreground="{StaticResource DangerBrush}" />
@@ -679,7 +679,7 @@
                                    VerticalAlignment="Center" />
                         <Button Grid.Column="1"
                                 Classes="danger"
-                                Content="删除版本"
+                                Content="{loc:Tr VS.DeleteVersion}"
                                 IsVisible="{Binding !IsDeleteConfirmVisible}"
                                 IsEnabled="{Binding !Session.IsBusy}"
                                 Command="{Binding RequestDeleteCommand}" />
@@ -692,15 +692,15 @@
                             CornerRadius="10"
                             Padding="14">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="确定要永久删除此版本吗？此操作不可撤销。"
+                            <TextBlock Text="{loc:Tr VS.DeleteVersionConfirm}"
                                        TextWrapping="Wrap" />
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <Button Classes="danger"
-                                        Content="确认删除"
+                                        Content="{loc:Tr VS.ConfirmDelete}"
                                         IsEnabled="{Binding !Session.IsBusy}"
                                         Command="{Binding ConfirmDeleteCommand}" />
                                 <Button Classes="secondary"
-                                        Content="取消"
+                                        Content="{loc:Tr Common.Cancel}"
                                         Command="{Binding CancelDeleteCommand}" />
                             </StackPanel>
                         </StackPanel>

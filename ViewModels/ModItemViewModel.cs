@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PMCL.Localization;
 using PMCL.Services;
 
 namespace PMCL.ViewModels;
@@ -38,11 +39,13 @@ public sealed partial class ModItemViewModel : ViewModelBase
 
     public bool IsEnabled => Info.IsEnabled;
 
-    public string ToggleLabel => Info.IsEnabled ? "禁用" : "启用";
+    public string ToggleLabel => Info.IsEnabled
+        ? L.Tr("Mod.Disable")
+        : L.Tr("Mod.Enable");
 
     public string ToggleHint => Info.IsEnabled
-        ? "重命名为 .jar.disabled，游戏将不再加载该模组"
-        : "去掉 .disabled 后缀，游戏下次启动时加载该模组";
+        ? L.Tr("Mod.DisableHint")
+        : L.Tr("Mod.EnableHint");
 
     public IAsyncRelayCommand ToggleCommand { get; }
 

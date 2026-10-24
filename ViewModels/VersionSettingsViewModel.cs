@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PMCL.Localization;
 using PMCL.Models;
 using PMCL.Services;
 
@@ -92,7 +93,9 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
     public bool HasVersion => _version is not null;
 
-    public string VersionStatusText => _version is { IsInstalled: true } ? "已安装" : "未安装";
+    public string VersionStatusText => _version is { IsInstalled: true }
+        ? L.Tr("Version.Installed")
+        : L.Tr("Version.NotInstalled");
 
     public string VersionTypeLabel => _version?.TypeLabel ?? string.Empty;
 
@@ -108,11 +111,11 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     /// </summary>
     public bool IsModLoaderCardVisible => IsSettingsSection && CanManageModLoader;
 
-    public string CurrentLoaderLabel => _version?.LoaderLabel ?? "原版";
+    public string CurrentLoaderLabel => _version?.LoaderLabel ?? L.Tr("Loader.Vanilla");
 
     public string LoaderBaseVersionLabel => _version is { IsModded: true }
-        ? $"基于原版 {_version.BaseVersionName}"
-        : "当前为原版版本，可以添加一个模组加载器。";
+        ? L.Format("VS.LoaderBase", _version.BaseVersionName)
+        : L.Tr("VS.LoaderVanillaHint");
 
     public string VersionDirectory => _version is null
         ? string.Empty
@@ -144,8 +147,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
     public bool CanImportSharedData => _version is { IsInstalled: true };
 
-    public string DeleteWarningText =>
-        "删除此版本会移除整个版本文件夹，包括该版本隔离的存档、截图、模组与配置；共享的 libraries / assets / runtime 与其它版本不受影响。";
+    public string DeleteWarningText => L.Tr("VS.DeleteWarning");
 
     public string DetectedJavaText
     {
@@ -153,38 +155,38 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         {
             var detected = _minecraft.TryGetDefaultJavaPath(_session.Settings.GameDirectory);
             return string.IsNullOrWhiteSpace(detected)
-                ? "未自动检测到 Java，请手动指定。"
-                : $"自动检测：{detected}";
+                ? L.Tr("VS.JavaNotDetected")
+                : L.Format("Loader.AutoDetectedJava", detected);
         }
     }
 
     public IReadOnlyList<string> LoginModes { get; } = new[]
     {
-        "使用当前账户",
-        "Microsoft 账户（需已登录）",
-        "离线账户"
+        L.Tr("VS.Login.Current"),
+        L.Tr("VS.Login.Microsoft"),
+        L.Tr("VS.Login.Offline")
     };
 
     public IReadOnlyList<ModrinthCategoryOption> ModrinthCategoryOptions { get; } = new[]
     {
-        new ModrinthCategoryOption("全部类型", null),
-        new ModrinthCategoryOption("科技", "technology"),
-        new ModrinthCategoryOption("魔法", "magic"),
-        new ModrinthCategoryOption("实用", "utility"),
-        new ModrinthCategoryOption("冒险", "adventure"),
-        new ModrinthCategoryOption("装饰", "decoration"),
-        new ModrinthCategoryOption("世界生成", "worldgen"),
-        new ModrinthCategoryOption("存储", "storage"),
-        new ModrinthCategoryOption("优化", "optimization"),
-        new ModrinthCategoryOption("库 / 前置", "library"),
-        new ModrinthCategoryOption("生物", "mobs"),
-        new ModrinthCategoryOption("装备", "equipment")
+        new ModrinthCategoryOption(L.Tr("Versions.Filter.All"), null),
+        new ModrinthCategoryOption(L.Tr("VS.Category.Technology"), "technology"),
+        new ModrinthCategoryOption(L.Tr("VS.Category.Magic"), "magic"),
+        new ModrinthCategoryOption(L.Tr("VS.Category.Utility"), "utility"),
+        new ModrinthCategoryOption(L.Tr("VS.Category.Adventure"), "adventure"),
+        new ModrinthCategoryOption(L.Tr("VS.Category.Decoration"), "decoration"),
+        new ModrinthCategoryOption(L.Tr("VS.Category.Worldgen"), "worldgen"),
+        new ModrinthCategoryOption(L.Tr("VS.Category.Storage"), "storage"),
+        new ModrinthCategoryOption(L.Tr("VS.Category.Optimization"), "optimization"),
+        new ModrinthCategoryOption(L.Tr("VS.Category.Library"), "library"),
+        new ModrinthCategoryOption(L.Tr("VS.Category.Mobs"), "mobs"),
+        new ModrinthCategoryOption(L.Tr("VS.Category.Equipment"), "equipment")
     };
 
     public IReadOnlyList<string> ModrinthSourceOptions { get; } = new[]
     {
-        "Modrinth（可用）",
-        "CurseForge（即将支持）"
+        L.Tr("VS.Source.Modrinth"),
+        L.Tr("VS.Source.CurseForge")
     };
 
     public VersionSettingsSection SelectedSection
@@ -241,8 +243,10 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     public bool IsModrinthSourceSelected => SelectedModrinthSourceIndex == 0;
 
     public string ModrinthSearchButtonText => IsModrinthSearching
-        ? "搜索中..."
-        : IsModrinthSourceSelected ? "搜索" : "即将支持";
+        ? L.Tr("VS.Searching")
+        : IsModrinthSourceSelected
+            ? L.Tr("VS.Search")
+            : L.Tr("VS.ComingSoon");
 
     public string ModrinthCompatibilityText
     {
@@ -251,14 +255,16 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             if (_version is null)
                 return string.Empty;
             if (!_version.IsInstalled)
-                return "请先安装该版本，再管理模组。";
+                return L.Tr("VS.Compat.NotInstalled");
             if (_version.LoaderKind == ModLoaderKind.OptiFine)
-                return "OptiFine 版本不支持从 Modrinth 自动安装模组；请使用 Fabric / Forge / NeoForge，或手动把模组放入 mods 文件夹。";
+                return L.Tr("VS.Compat.OptiFine");
             if (!_version.IsModded)
-                return "原版版本无法加载模组。请先在「模组加载器」中添加 Fabric / Forge / NeoForge。";
+                return L.Tr("VS.Compat.Vanilla");
 
-            return $"只显示兼容 Minecraft {_version.BaseVersionName} 与 " +
-                   $"{_version.LoaderKind.ToDisplayName()} 的模组；安装时会自动下载必需的前置模组。";
+            return L.Format(
+                "VS.Compat.Supported",
+                _version.BaseVersionName,
+                _version.LoaderKind.ToDisplayName());
         }
     }
 
@@ -314,14 +320,13 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     public partial bool ShowDisabledMods { get; set; } = true;
 
     [ObservableProperty]
-    public partial string LocalModStatusText { get; set; } = "尚未扫描模组文件夹。";
+    public partial string LocalModStatusText { get; set; } = L.Tr("VS.LocalMods.NotScanned");
 
     [ObservableProperty]
     public partial string ModrinthSearchText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string ModrinthStatusText { get; set; } =
-        "搜索并安装兼容当前版本与加载器的模组，必需的前置模组会自动下载。";
+    public partial string ModrinthStatusText { get; set; } = L.Tr("VS.Modrinth.Hint");
 
     [ObservableProperty]
     public partial bool IsModrinthSearching { get; set; }
@@ -336,7 +341,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     public partial bool IsRemoveLoaderConfirmVisible { get; set; }
 
     [ObservableProperty]
-    public partial string SaveState { get; set; } = "修改会自动保存";
+    public partial string SaveState { get; set; } = L.Tr("VS.Save.Auto");
 
     public bool IsOfflineLogin => SelectedLoginModeIndex == 2;
 
@@ -381,15 +386,15 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         PreLaunchCommand = _model.PreLaunchCommand;
         IsDeleteConfirmVisible = false;
         IsRemoveLoaderConfirmVisible = false;
-        SaveState = "修改会自动保存";
+        SaveState = L.Tr("VS.Save.Auto");
 
         LocalModSearchText = string.Empty;
-        LocalModStatusText = "尚未扫描模组文件夹。";
+        LocalModStatusText = L.Tr("VS.LocalMods.NotScanned");
         ModrinthSearchText = string.Empty;
         ModrinthResults.Clear();
         SelectedModrinthCategoryIndex = 0;
         SelectedModrinthSourceIndex = 0;
-        ModrinthStatusText = "搜索并安装兼容当前版本与加载器的模组，必需的前置模组会自动下载。";
+        ModrinthStatusText = L.Tr("VS.Modrinth.Hint");
 
         _loading = false;
         OnPropertyChanged(nameof(IsOfflineLogin));
@@ -427,13 +432,13 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     private void Save()
     {
         if (SaveNow(reportStatus: true))
-            Session.SetStatus($"版本 {_version?.Name} 的设置已保存");
+            Session.SetStatus(L.Format("VS.Saved", _version?.Name));
     }
 
     [RelayCommand]
     private async Task BrowseJavaAsync()
     {
-        var file = await _picker.PickJavaExecutableAsync("选择该版本使用的 Java");
+        var file = await _picker.PickJavaExecutableAsync(L.Tr("VS.PickJava"));
         if (!string.IsNullOrWhiteSpace(file))
             JavaPath = file;
     }
@@ -450,7 +455,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         _saveDebounce?.Cancel();
         if (!SaveNow(reportStatus: false))
         {
-            Session.SetError($"无法添加模组加载器：{SaveState}");
+            Session.SetError(L.Format("VS.AddLoaderFailed", SaveState));
             return;
         }
 
@@ -562,12 +567,12 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
         if (!IsModrinthSourceSelected)
         {
-            ModrinthStatusText = "CurseForge 下载源即将支持，请先选择 Modrinth。";
+            ModrinthStatusText = L.Tr("VS.CurseForgeUnsupported");
             return;
         }
 
         IsModrinthSearching = true;
-        ModrinthStatusText = "正在从 Modrinth 搜索兼容模组...";
+        ModrinthStatusText = L.Tr("VS.Modrinth.Searching");
         var versionName = _version.Name;
         var category = ModrinthCategoryOptions.ElementAtOrDefault(SelectedModrinthCategoryIndex)?.Slug;
         try
@@ -589,14 +594,14 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
                 ModrinthResults.Add(new ModrinthProjectItemViewModel(hit, InstallModrinthProjectAsync));
 
             ModrinthStatusText = result.Hits.Count == 0
-                ? "没有找到兼容的模组。请检查网络或搜索关键词，并确认该版本使用 Fabric / Forge / NeoForge。"
-                : $"共 {result.TotalHits} 个兼容结果，当前显示 {result.Hits.Count} 个。";
+                ? L.Tr("VS.Modrinth.NoResults")
+                : L.Format("VS.Modrinth.Results", result.TotalHits, result.Hits.Count);
             Session.SetStatus(ModrinthStatusText);
         }
         catch (Exception ex)
         {
-            ModrinthStatusText = "搜索 Modrinth 失败。";
-            Session.SetError($"搜索 Modrinth 失败：{ex.Message}");
+            ModrinthStatusText = L.Tr("VS.Modrinth.SearchFailed");
+            Session.SetError(L.Format("VS.Modrinth.SearchFailedDetail", ex.Message));
         }
         finally
         {
@@ -611,7 +616,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
         item.IsInstalling = true;
         IsModrinthInstalling = true;
-        Session.BeginBusy($"正在从 Modrinth 安装 {item.Title}...");
+        Session.BeginBusy(L.Format("VS.Modrinth.Installing", item.Title));
         try
         {
             var progress = new Progress<string>(message => Session.SetStatus(message));
@@ -625,18 +630,27 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             ReloadLocalMods();
 
             var message = report.InstalledFiles == 0
-                ? $"未下载新文件（{report.SkippedFiles} 个文件已存在）。"
-                : $"已安装 {report.InstalledFiles} 个模组文件" +
-                  (report.SkippedFiles > 0 ? $"，跳过 {report.SkippedFiles} 个已存在的文件" : string.Empty) + "。";
+                ? L.Format("VS.Modrinth.NothingNew", report.SkippedFiles)
+                : report.SkippedFiles > 0
+                    ? L.Format(
+                        "VS.Modrinth.InstalledWithSkipped",
+                        report.InstalledFiles,
+                        report.SkippedFiles)
+                    : L.Format("VS.Modrinth.Installed", report.InstalledFiles);
             if (report.HasWarnings)
-                message += $" 有 {report.Warnings.Count} 个必需前置未自动安装：{report.Warnings[0]}";
+            {
+                message += " " + L.Format(
+                    "VS.Modrinth.Warnings",
+                    report.Warnings.Count,
+                    report.Warnings[0]);
+            }
 
             Session.SetStatus(message);
             ModrinthStatusText = message;
         }
         catch (Exception ex)
         {
-            Session.SetError($"安装 Modrinth 模组失败：{ex.Message}");
+            Session.SetError(L.Format("VS.Modrinth.InstallFailed", ex.Message));
         }
         finally
         {
@@ -656,12 +670,12 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             var updated = await Task.Run(() => _modService.SetEnabled(item.Info, !item.Info.IsEnabled));
             ReloadLocalMods();
             Session.SetStatus(updated.IsEnabled
-                ? $"已启用模组 {updated.DisplayName}，下次启动游戏时生效"
-                : $"已禁用模组 {updated.DisplayName}（文件已重命名为 .jar.disabled）");
+                ? L.Format("VS.Mod.Enabled", updated.DisplayName)
+                : L.Format("VS.Mod.Disabled", updated.DisplayName));
         }
         catch (Exception ex)
         {
-            Session.SetError($"切换模组状态失败：{ex.Message}");
+            Session.SetError(L.Format("VS.Mod.ToggleFailed", ex.Message));
         }
     }
 
@@ -675,11 +689,11 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             var name = item.DisplayName;
             await Task.Run(() => _modService.Delete(item.Info));
             ReloadLocalMods();
-            Session.SetStatus($"已删除模组 {name}");
+            Session.SetStatus(L.Format("VS.Mod.Deleted", name));
         }
         catch (Exception ex)
         {
-            Session.SetError($"删除模组失败：{ex.Message}");
+            Session.SetError(L.Format("VS.Mod.DeleteFailed", ex.Message));
         }
     }
 
@@ -695,7 +709,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             }
             catch (Exception ex)
             {
-                LocalModStatusText = $"读取 mods 文件夹失败：{ex.Message}";
+                LocalModStatusText = L.Format("VS.LocalMods.ReadFailed", ex.Message);
                 RebuildLocalMods();
                 return;
             }
@@ -726,11 +740,13 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
         var enabled = _allMods.Count(info => info.IsEnabled);
         LocalModStatusText = _version is not { IsInstalled: true }
-            ? "安装该版本后即可管理模组。"
+            ? L.Tr("VS.Mods.NotInstalled")
             : _allMods.Count == 0
-                ? "mods 文件夹中还没有模组。可以手动放入 .jar，或从下面 Modrinth 搜索下载。"
-                : $"已启用 {enabled} 个，已禁用 {_allMods.Count - enabled} 个" +
-                  (LocalMods.Count != _allMods.Count ? $"，当前显示 {LocalMods.Count} 个" : string.Empty);
+                ? L.Tr("VS.Mods.Empty")
+                : L.Format("VS.Mods.Summary", enabled, _allMods.Count - enabled) +
+                  (LocalMods.Count != _allMods.Count
+                      ? L.Format("VS.Mods.Filtered", LocalMods.Count)
+                      : string.Empty);
 
         OnPropertyChanged(nameof(HasLocalMods));
         OnPropertyChanged(nameof(HasNoLocalMods));
@@ -744,26 +760,26 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
         if (!_version.IsInstalled)
         {
-            Session.SetError("请先安装该版本，再导入共享数据。");
+            Session.SetError(L.Tr("VS.Import.NotInstalled"));
             return;
         }
 
         var gameDirectory = _session.Settings.GameDirectory;
         var versionName = _version.Name;
 
-        Session.BeginBusy("正在从共享目录导入存档与配置...");
+        Session.BeginBusy(L.Tr("VS.Import.Busy"));
         try
         {
             var result = await Task.Run(
                 () => VersionIsolationService.ImportSharedData(gameDirectory, versionName));
 
             Session.SetStatus(result.CopiedFiles == 0
-                ? "共享目录中没有可导入的数据，或目标文件已全部存在"
-                : $"已从共享目录复制 {result.CopiedFiles} 个文件到本版本，跳过 {result.SkippedFiles} 个已存在的文件");
+                ? L.Tr("VS.Import.Nothing")
+                : L.Format("VS.Import.Done", result.CopiedFiles, result.SkippedFiles));
         }
         catch (Exception ex)
         {
-            Session.SetError($"导入共享数据失败：{ex.Message}");
+            Session.SetError(L.Format("VS.Import.Failed", ex.Message));
         }
         finally
         {
@@ -780,7 +796,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         _saveDebounce?.Cancel();
         if (!SaveNow(reportStatus: false))
         {
-            Session.SetError($"无法补全文件：{SaveState}");
+            Session.SetError(L.Format("VS.CompleteFailed", SaveState));
             return;
         }
 
@@ -797,16 +813,16 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         _saveDebounce?.Cancel();
         if (!SaveNow(reportStatus: false))
         {
-            Session.SetError($"无法导出启动脚本：{SaveState}");
+            Session.SetError(L.Format("VS.ExportScriptFailed", SaveState));
             return;
         }
 
         var suggestedName = SanitizeFileName(_version.Name) + "-start.bat";
         var targetPath = await _picker.PickSaveFileAsync(
-            "导出启动脚本",
+            L.Tr("VS.ExportScript"),
             suggestedName,
             "bat",
-            "批处理脚本",
+            L.Tr("VS.ExportScript.Batch"),
             "*.bat");
 
         if (string.IsNullOrWhiteSpace(targetPath))
@@ -829,13 +845,13 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
         if (string.IsNullOrWhiteSpace(newName))
         {
-            Session.SetError("版本名不能为空。");
+            Session.SetError(L.Tr("VS.Rename.Empty"));
             return;
         }
 
         if (string.Equals(oldName, newName, StringComparison.Ordinal))
         {
-            Session.SetStatus("版本名没有变化");
+            Session.SetStatus(L.Tr("VS.Rename.Unchanged"));
             return;
         }
 
@@ -852,11 +868,11 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         _saveDebounce?.Cancel();
         if (!SaveNow(reportStatus: false))
         {
-            Session.SetError($"无法重命名版本：{SaveState}");
+            Session.SetError(L.Format("VS.Rename.Failed", SaveState));
             return;
         }
 
-        Session.BeginBusy($"正在重命名版本 {oldName}...");
+        Session.BeginBusy(L.Format("VS.Rename.Busy", oldName));
 
         try
         {
@@ -867,7 +883,8 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             NewVersionName = newName;
 
             if (!_settingsService.TrySave(_session.Settings, out var saveError))
-                throw new InvalidOperationException($"版本文件已重命名，但设置保存失败：{saveError}");
+                throw new InvalidOperationException(
+                    L.Format("VS.Rename.SaveFailed", saveError));
 
             await _refreshVersionsAsync();
             if (Session.LastError is null)
@@ -877,13 +894,13 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
                     Open(renamedVersion);
             }
 
-            SaveState = "版本已重命名";
+            SaveState = L.Tr("VS.Rename.Done");
             NotifyVersionDerived();
-            Session.SetStatus($"版本已重命名为 {newName}");
+            Session.SetStatus(L.Format("VS.Rename.Success", newName));
         }
         catch (Exception ex)
         {
-            Session.SetError($"重命名版本失败：{ex.Message}");
+            Session.SetError(L.Format("VS.Rename.Error", ex.Message));
         }
         finally
         {
@@ -912,13 +929,13 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
             if (loaders.Count > 0)
             {
                 IsDeleteConfirmVisible = false;
-                Session.SetError("该版本仍有模组加载器，请先在版本设置中移除加载器，再删除原版版本。");
+                Session.SetError(L.Tr("VS.Delete.HasLoaders"));
                 return;
             }
         }
 
         _saveDebounce?.Cancel();
-        Session.BeginBusy($"正在删除版本 {version.Name}...");
+        Session.BeginBusy(L.Format("VS.Delete.Busy", version.Name));
 
         try
         {
@@ -927,7 +944,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
             _session.RemoveVersion(version);
             _settingsService.SaveSilently(_session.Settings);
-            Session.SetStatus($"已删除版本 {version.Name}（该版本隔离的存档、截图与模组已一并删除）");
+            Session.SetStatus(L.Format("VS.Delete.Done", version.Name));
 
             _saveDebounce?.Cancel();
             _version = null;
@@ -938,7 +955,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Session.SetError($"删除版本失败：{ex.Message}");
+            Session.SetError(L.Format("VS.Delete.Failed", ex.Message));
         }
         finally
         {
@@ -968,7 +985,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         _saveDebounce?.Cancel();
         var source = new CancellationTokenSource();
         _saveDebounce = source;
-        SaveState = "正在保存...";
+        SaveState = L.Tr("VS.Saving");
         _ = SaveAfterDelayAsync(source);
     }
 
@@ -996,9 +1013,9 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
         if (MaximumRamMb < MinimumRamMb)
         {
-            SaveState = "最大内存不能小于最小内存";
+            SaveState = L.Tr("VS.RamInvalid");
             if (reportStatus)
-                Session.SetError("最大内存不能小于最小内存。");
+                Session.SetError(L.Tr("VS.RamInvalidDetail"));
             return false;
         }
 
@@ -1024,12 +1041,12 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
         if (!_settingsService.TrySave(_session.Settings, out var error))
         {
-            SaveState = "保存失败";
-            Session.SetError($"保存版本设置失败：{error}");
+            SaveState = L.Tr("VS.SaveFailed");
+            Session.SetError(L.Format("VS.SaveFailedDetail", error));
             return false;
         }
 
-        SaveState = $"已保存 {DateTime.Now:HH:mm:ss}";
+        SaveState = L.Format("VS.Save.Timestamp", DateTime.Now.ToString("HH:mm:ss"));
         return true;
     }
 
@@ -1041,7 +1058,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
                 Directory.CreateDirectory(path);
 
             if (!Directory.Exists(path))
-                throw new DirectoryNotFoundException($"文件夹不存在：{path}");
+                throw new DirectoryNotFoundException(L.Format("VS.Folder.NotFound", path));
 
             var startInfo = OperatingSystem.IsWindows()
                 ? new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true }
@@ -1050,11 +1067,11 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
                     : new ProcessStartInfo("xdg-open", $"\"{path}\"") { UseShellExecute = true };
 
             Process.Start(startInfo);
-            Session.SetStatus($"已在文件管理器中打开：{path}");
+            Session.SetStatus(L.Format("VS.Folder.Opened", path));
         }
         catch (Exception ex)
         {
-            Session.SetError($"打开文件夹失败：{ex.Message}");
+            Session.SetError(L.Format("VS.Folder.OpenFailed", ex.Message));
         }
     }
 
@@ -1146,11 +1163,11 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
         if (value != 0)
         {
-            ModrinthStatusText = "CurseForge 下载源即将支持；当前版本可继续使用 Modrinth。";
+            ModrinthStatusText = L.Tr("VS.CurseForgeHint");
         }
         else if (ModrinthResults.Count == 0)
         {
-            ModrinthStatusText = "搜索并安装兼容当前版本与加载器的模组，必需的前置模组会自动下载。";
+            ModrinthStatusText = L.Tr("VS.Modrinth.Hint");
         }
     }
 
@@ -1159,6 +1176,8 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         if (ModrinthResults.Count == 0)
             return;
 
-        ModrinthStatusText = $"类型已切换为「{ModrinthCategoryOptions[value].DisplayName}」，点击搜索刷新结果。";
+        ModrinthStatusText = L.Format(
+            "VS.CategoryChanged",
+            ModrinthCategoryOptions[value].DisplayName);
     }
 }

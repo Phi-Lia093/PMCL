@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using PMCL.Localization;
 
 namespace PMCL.Services;
 
@@ -15,7 +16,7 @@ public static class SystemBrowserService
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
                 || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             {
-                error = "登录链接无效。";
+                error = L.Tr("Browser.InvalidLoginUrl");
                 return false;
             }
 

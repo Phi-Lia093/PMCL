@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using PMCL.Localization;
 using PMCL.Models;
 using PMCL.ViewModels;
 
@@ -86,7 +87,7 @@ public partial class MainWindow : Window
         _isHiddenToTray = true;
         ShowInTaskbar = false;
         Hide();
-        Session?.SetStatus("已最小化到托盘，双击托盘图标可重新打开启动器");
+        Session?.SetStatus(L.Tr("Tray.Minimized"));
     }
 
     /// <summary>

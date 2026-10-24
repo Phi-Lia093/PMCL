@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using PMCL.Localization;
 using PMCL.Models;
 using PMCL.Services;
 
@@ -30,8 +31,8 @@ public sealed partial class ModLoaderChoiceViewModel : ViewModelBase
     public double CardOpacity => IsAvailable ? 1 : 0.45;
 
     public string StatusText => IsAvailable
-        ? $"{Versions.Count} 个版本可用"
-        : Catalog.Error ?? "暂不可用";
+        ? L.Format("Loader.VersionsAvailable", Versions.Count)
+        : Catalog.Error ?? L.Tr("Loader.Unavailable");
 
     [ObservableProperty]
     public partial int SelectedVersionIndex { get; set; }
@@ -41,7 +42,7 @@ public sealed partial class ModLoaderChoiceViewModel : ViewModelBase
         ? Versions[SelectedVersionIndex]
         : null;
 
-    public string SelectedVersionText => SelectedVersion?.DisplayName ?? "请选择版本";
+    public string SelectedVersionText => SelectedVersion?.DisplayName ?? L.Tr("Version.Select");
 
     public void SelectVersion(string? version)
     {

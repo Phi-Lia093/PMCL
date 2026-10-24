@@ -4,6 +4,7 @@ using CmlLib.Core;
 using CmlLib.Core.Auth;
 using CmlLib.Core.Installers;
 using PMCL.Models;
+using PMCL.Localization;
 using PMCL.ViewModels;
 
 namespace PMCL.Services;
@@ -34,17 +35,17 @@ public sealed class GameLaunchCoordinator
         if (session.IsBusy)
             return;
 
-        session.BeginBusy($"正在准备下载 Minecraft {version.Name}...");
+        session.BeginBusy(L.Format("Launch.PreparingDownload", version.Name));
 
         try
         {
             await InstallCoreAsync(session, version, CancellationToken.None);
             session.MarkInstalled(version.Name);
-            session.SetStatus($"Minecraft {version.Name} 下载完成");
+            session.SetStatus(L.Format("Launch.DownloadComplete", version.Name));
         }
         catch (Exception ex)
         {
-            session.SetError($"下载 {version.Name} 失败：{ex.Message}");
+            session.SetError(L.Format("Launch.DownloadFailed", version.Name, ex.Message));
         }
         finally
         {
@@ -60,7 +61,7 @@ public sealed class GameLaunchCoordinator
         if (session.IsBusy)
             return;
 
-        session.BeginBusy($"正在补全 Minecraft {version.Name} 的文件...");
+        session.BeginBusy(L.Format("Launch.RepairingFiles", version.Name));
 
         try
         {
@@ -93,11 +94,11 @@ public sealed class GameLaunchCoordinator
             }
 
             session.MarkInstalled(version.Name);
-            session.SetStatus($"Minecraft {version.Name} 文件补全完成");
+            session.SetStatus(L.Format("Launch.RepairComplete", version.Name));
         }
         catch (Exception ex)
         {
-            session.SetError($"补全 {version.Name} 失败：{ex.Message}");
+            session.SetError(L.Format("Launch.RepairFailed", version.Name, ex.Message));
         }
         finally
         {
@@ -122,8 +123,11 @@ public sealed class GameLaunchCoordinator
             return null;
 
         session.BeginBusy(kind == ModLoaderKind.Vanilla
-            ? $"正在下载 Minecraft {baseVersion.Name}..."
-            : $"正在准备 {kind.ToDisplayName()} {kind.FormatLoaderVersion(loaderVersion ?? string.Empty)}...");
+            ? L.Format("Launch.DownloadingVanilla", baseVersion.Name)
+            : L.Format(
+                "Launch.PreparingLoader",
+                kind.ToDisplayName(),
+                kind.FormatLoaderVersion(loaderVersion ?? string.Empty)));
 
         try
         {
@@ -168,7 +172,7 @@ public sealed class GameLaunchCoordinator
             {
                 session.MarkInstalled(baseVersion.Name);
                 _settingsService.SaveSilently(session.Settings);
-                session.SetStatus($"Minecraft {baseVersion.Name} 下载完成");
+                session.SetStatus(L.Format("Launch.DownloadComplete", baseVersion.Name));
                 return result.VersionName;
             }
 
@@ -224,17 +228,19 @@ public sealed class GameLaunchCoordinator
 
             _settingsService.SaveSilently(session.Settings);
 
-            session.SetStatus(
-                $"已安装 {kind.ToDisplayName()} {kind.FormatLoaderVersion(loaderVersion ?? string.Empty)}" +
-                $"（版本 {result.VersionName}）");
+            session.SetStatus(L.Format(
+                "Launch.LoaderInstalled",
+                kind.ToDisplayName(),
+                kind.FormatLoaderVersion(loaderVersion ?? string.Empty),
+                result.VersionName));
             return result.VersionName;
         }
         catch (Exception ex)
         {
             session.SetError(
                 kind == ModLoaderKind.Vanilla
-                    ? $"下载 {baseVersion.Name} 失败：{ex.Message}"
-                    : $"安装 {kind.ToDisplayName()} 失败：{ex.Message}");
+                    ? L.Format("Launch.DownloadFailed", baseVersion.Name, ex.Message)
+                    : L.Format("Launch.LoaderInstallFailed", kind.ToDisplayName(), ex.Message));
             return null;
         }
         finally
@@ -257,11 +263,11 @@ public sealed class GameLaunchCoordinator
         if (string.IsNullOrWhiteSpace(baseVersionName)
             || string.Equals(baseVersionName, version.Name, StringComparison.OrdinalIgnoreCase))
         {
-            session.SetError("无法确定此模组加载器对应的原版版本。");
+            session.SetError(L.Tr("Launch.LoaderBaseUnknown"));
             return false;
         }
 
-        session.BeginBusy($"正在移除 {version.LoaderLabel}...");
+        session.BeginBusy(L.Format("Launch.RemovingLoader", version.LoaderLabel));
 
         try
         {
@@ -286,12 +292,15 @@ public sealed class GameLaunchCoordinator
             session.RemoveVersion(version);
             _settingsService.SaveSilently(session.Settings);
 
-            session.SetStatus($"已移除 {version.LoaderLabel}，保留原版版本 {baseVersionName}");
+            session.SetStatus(L.Format(
+                "Launch.LoaderRemoved",
+                version.LoaderLabel,
+                baseVersionName));
             return true;
         }
         catch (Exception ex)
         {
-            session.SetError($"移除模组加载器失败：{ex.Message}");
+            session.SetError(L.Format("Launch.RemoveLoaderFailed", ex.Message));
             return false;
         }
         finally
@@ -316,8 +325,12 @@ public sealed class GameLaunchCoordinator
             else
                 session.Progress = Math.Max(session.Progress, ratio);
 
-            session.SetStatus(
-                $"正在下载 {displayName}（{args.ProgressedTasks}/{args.TotalTasks}） {args.Name}");
+            session.SetStatus(L.Format(
+                "Launch.DownloadingFile",
+                displayName,
+                args.ProgressedTasks,
+                args.TotalTasks,
+                args.Name));
         });
 
     private static Progress<ByteProgress> CreateByteProgress(LauncherSession session)
@@ -378,7 +391,7 @@ public sealed class GameLaunchCoordinator
         GameVersion version)
     {
         session.IsProgressIndeterminate = true;
-        session.SetStatus("正在补全缺失的启动文件...");
+        session.SetStatus(L.Tr("Launch.RepairingLaunchFiles"));
         await _minecraft.InstallAsync(
                 session.Settings.GameDirectory,
                 version.Name,
@@ -414,12 +427,12 @@ public sealed class GameLaunchCoordinator
         }
         catch (Exception ex)
         {
-            session.SetError($"无法启动 {version.Name}：{ex.Message}");
+            session.SetError(L.Format("Launch.LaunchError", version.Name, ex.Message));
             return null;
         }
 
         session.BeginGameStarting();
-        session.BeginBusy($"正在启动 Minecraft {version.Name}...");
+        session.BeginBusy(L.Format("Launch.StartingGame", version.Name));
 
         try
         {
@@ -427,7 +440,7 @@ public sealed class GameLaunchCoordinator
                 await InstallCoreAsync(session, version, CancellationToken.None);
 
             session.IsProgressIndeterminate = true;
-            session.SetStatus("正在构建游戏进程...");
+            session.SetStatus(L.Tr("Launch.BuildingProcess"));
 
             var gameDirectory = _minecraft.GetGameDirectory(
                 session.Settings.GameDirectory,
@@ -457,16 +470,16 @@ public sealed class GameLaunchCoordinator
                 missingFiles = MinecraftService.FindMissingLaunchFiles(process);
                 if (missingFiles.Count > 0)
                 {
-                    var preview = string.Join("、", missingFiles.Take(3));
-                    throw new InvalidOperationException(
-                        $"启动文件仍然缺失：{preview}" +
-                        (missingFiles.Count > 3 ? " 等" : string.Empty));
+                    var preview = string.Join(L.Tr("Common.ListSeparator"), missingFiles.Take(3));
+                    throw new InvalidOperationException(L.Format(
+                        "Launch.MissingFiles",
+                        preview + (missingFiles.Count > 3 ? L.Tr("Launch.MissingFilesMore") : string.Empty)));
                 }
             }
 
             if (!string.IsNullOrWhiteSpace(settings.PreLaunchCommand))
             {
-                session.SetStatus("正在执行启动前命令...");
+                session.SetStatus(L.Tr("Launch.RunningPreLaunch"));
                 await RunPreLaunchCommandAsync(
                     settings.PreLaunchCommand,
                     gameDirectory,
@@ -475,19 +488,19 @@ public sealed class GameLaunchCoordinator
             }
 
             if (!process.Start())
-                throw new InvalidOperationException("无法启动 Java 进程。");
+                throw new InvalidOperationException(L.Tr("Launch.StartJavaFailed"));
 
             session.MarkInstalled(version.Name);
             _settingsService.SaveSilently(session.Settings);
             session.AttachGameProcess(version.Name, process);
             if (session.IsGameRunning)
-                session.SetStatus($"Minecraft {version.Name} 已启动，游戏运行中");
+                session.SetStatus(L.Format("Launch.GameRunning", version.Name));
             return process;
         }
         catch (Exception ex)
         {
             session.CancelGameStarting();
-            session.SetError($"启动 {version.Name} 失败：{ex.Message}");
+            session.SetError(L.Format("Launch.LaunchError", version.Name, ex.Message));
             return null;
         }
         finally
@@ -514,20 +527,20 @@ public sealed class GameLaunchCoordinator
         try
         {
             if (!version.IsInstalled)
-                throw new InvalidOperationException("请先安装该版本，再导出启动脚本。");
+                throw new InvalidOperationException(L.Tr("Launch.InstallFirstForScript"));
             if (string.IsNullOrWhiteSpace(targetPath))
-                throw new InvalidOperationException("未选择脚本保存位置。");
+                throw new InvalidOperationException(L.Tr("Launch.NoScriptPath"));
 
             login = ResolveLogin(session, settings);
             ValidateVersionSettings(settings);
         }
         catch (Exception ex)
         {
-            session.SetError($"导出启动脚本失败：{ex.Message}");
+            session.SetError(L.Format("Launch.ExportScriptFailed", ex.Message));
             return false;
         }
 
-        session.BeginBusy("正在生成启动脚本...");
+        session.BeginBusy(L.Tr("Launch.GeneratingScript"));
 
         try
         {
@@ -552,12 +565,12 @@ public sealed class GameLaunchCoordinator
                 Directory.CreateDirectory(directory);
 
             await File.WriteAllTextAsync(targetPath, content, new UTF8Encoding(false));
-            session.SetStatus($"启动脚本已导出：{targetPath}");
+            session.SetStatus(L.Format("Launch.ScriptExported", targetPath));
             return true;
         }
         catch (Exception ex)
         {
-            session.SetError($"导出启动脚本失败：{ex.Message}");
+            session.SetError(L.Format("Launch.ExportScriptFailed", ex.Message));
             return false;
         }
         finally
@@ -572,11 +585,11 @@ public sealed class GameLaunchCoordinator
         {
             case VersionLoginMode.CurrentAccount:
                 return session.ActiveSession
-                       ?? throw new InvalidOperationException("请先在账户页登录 Microsoft 或离线账户。");
+                       ?? throw new InvalidOperationException(L.Tr("Launch.NeedAccount"));
 
             case VersionLoginMode.Microsoft:
                 if (session.Account?.Kind != AccountKind.Microsoft || session.ActiveSession is null)
-                    throw new InvalidOperationException("该版本要求 Microsoft 账户，请先在账户页登录。");
+                    throw new InvalidOperationException(L.Tr("Launch.NeedMicrosoftAccount"));
                 return session.ActiveSession;
 
             case VersionLoginMode.Offline:
@@ -585,28 +598,28 @@ public sealed class GameLaunchCoordinator
                     : settings.OfflineUsername.Trim();
 
                 if (username.Length is < 3 or > 16)
-                    throw new InvalidOperationException("离线用户名长度必须为 3 到 16 个字符。");
+                    throw new InvalidOperationException(L.Tr("Launch.InvalidOfflineName"));
 
                 return AuthenticationService.CreateOfflineSession(username);
 
             default:
-                throw new InvalidOperationException("未知的登录方式。");
+                throw new InvalidOperationException(L.Tr("Launch.UnknownLoginMode"));
         }
     }
 
     private static void ValidateVersionSettings(GameVersionSettings settings)
     {
         if (settings.MinimumRamMb > settings.MaximumRamMb)
-            throw new InvalidOperationException("最大内存不能小于最小内存。");
+            throw new InvalidOperationException(L.Tr("Launch.RamInvalid"));
 
         if (!string.IsNullOrWhiteSpace(settings.JavaPath) && !File.Exists(settings.JavaPath))
-            throw new InvalidOperationException($"找不到 Java：{settings.JavaPath}");
+            throw new InvalidOperationException(L.Format("Launch.JavaNotFound", settings.JavaPath));
 
         if (settings.AutoJoinServer && string.IsNullOrWhiteSpace(settings.ServerAddress))
-            throw new InvalidOperationException("已启用自动进入服务器，但服务器地址为空。");
+            throw new InvalidOperationException(L.Tr("Launch.ServerAddressRequired"));
 
         if (settings.AutoJoinServer && settings.ServerPort is < 1 or > 65535)
-            throw new InvalidOperationException("服务器端口必须在 1 到 65535 之间。");
+            throw new InvalidOperationException(L.Tr("Launch.ServerPortInvalid"));
     }
 
     private static async Task RunPreLaunchCommandAsync(
@@ -650,7 +663,7 @@ public sealed class GameLaunchCoordinator
         startInfo.Environment["PMCL_VERSION_DIR"] = versionDirectory;
 
         using var process = Process.Start(startInfo)
-                            ?? throw new InvalidOperationException("无法启动启动前命令。");
+                            ?? throw new InvalidOperationException(L.Tr("Launch.PreLaunchStartFailed"));
 
         var outputTask = process.StandardOutput.ReadToEndAsync();
         var errorTask = process.StandardError.ReadToEndAsync();
@@ -672,7 +685,7 @@ public sealed class GameLaunchCoordinator
             }
 
             throw new TimeoutException(
-                $"启动前命令超过 {PreLaunchTimeout.TotalMinutes:0} 分钟仍未结束，已终止。");
+                L.Format("Launch.PreLaunchTimeout", PreLaunchTimeout.TotalMinutes));
         }
 
         var output = await outputTask.ConfigureAwait(true);
@@ -688,8 +701,8 @@ public sealed class GameLaunchCoordinator
 
         throw new InvalidOperationException(
             string.IsNullOrWhiteSpace(detail)
-                ? $"启动前命令失败（退出码 {process.ExitCode}）。"
-                : $"启动前命令失败（退出码 {process.ExitCode}）：{detail}");
+                ? L.Format("Launch.PreLaunchExitCode", process.ExitCode)
+                : L.Format("Launch.PreLaunchExitCodeDetail", process.ExitCode, detail));
     }
 
     private static string BuildBatchScript(
@@ -725,7 +738,7 @@ public sealed class GameLaunchCoordinator
 
         var javaPath = process.StartInfo.FileName;
         if (string.IsNullOrWhiteSpace(javaPath))
-            throw new InvalidOperationException("CmlLib 未返回 Java 可执行文件路径。");
+            throw new InvalidOperationException(L.Tr("Launch.JavaPathMissing"));
 
         builder.Append(QuoteBatchArgument(javaPath));
         foreach (var argument in GetProcessArguments(process))

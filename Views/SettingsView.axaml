@@ -1,5 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:loc="using:PMCL.Localization"
              xmlns:vm="using:PMCL.ViewModels"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -13,8 +13,8 @@
             <Border Classes="card">
                 <StackPanel Spacing="16">
                     <StackPanel Spacing="3">
-                        <TextBlock Text="游戏目录" Classes="h2" FontSize="16" />
-                        <TextBlock Text="版本元数据与共享的 libraries / assets / runtime 保存在这个 .minecraft 目录中；每个版本的存档、截图、模组与配置会自动隔离在 versions\&lt;版本名&gt; 内，互不影响。"
+                        <TextBlock Text="{loc:Tr Settings.GameDirectory}" Classes="h2" FontSize="16" />
+                        <TextBlock Text="{loc:Tr Settings.GameDirectoryHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                     </StackPanel>
@@ -23,16 +23,16 @@
                         <TextBox Grid.Column="0" Text="{Binding GameDirectory}" />
                         <Button Grid.Column="1"
                                 Classes="secondary"
-                                Content="浏览"
+                                Content="{loc:Tr Common.Browse}"
                                 Command="{Binding BrowseGameDirectoryCommand}" />
                     </Grid>
 
                     <StackPanel Orientation="Horizontal" Spacing="12">
                         <Button Classes="ghost"
                                 Padding="0,4"
-                                Content="恢复默认目录"
+                                Content="{loc:Tr Settings.ResetDirectory}"
                                 Command="{Binding ResetGameDirectoryCommand}" />
-                        <TextBlock Text="修改后会重新加载版本列表。"
+                        <TextBlock Text="{loc:Tr Settings.DirectoryReloadHint}"
                                    Classes="muted"
                                    VerticalAlignment="Center" />
                     </StackPanel>
@@ -42,8 +42,8 @@
             <Border Classes="card">
                 <StackPanel Spacing="14">
                     <StackPanel Spacing="3">
-                        <TextBlock Text="下载源" Classes="h2" FontSize="16" />
-                        <TextBlock Text="官方源优先使用 Mojang 与各加载器官方地址，不依赖 BMCLAPI；镜像仅用于加速或回退。"
+                        <TextBlock Text="{loc:Tr Settings.DownloadSource}" Classes="h2" FontSize="16" />
+                        <TextBlock Text="{loc:Tr Settings.DownloadSourceHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                     </StackPanel>
@@ -60,27 +60,27 @@
             <Border Classes="card">
                 <StackPanel Spacing="14">
                     <StackPanel Spacing="3">
-                        <TextBlock Text="窗口与托盘" Classes="h2" FontSize="16" />
-                        <TextBlock Text="PMCL 使用无边框窗口与系统托盘图标。关闭窗口、启动游戏后都可以选择把启动器收进托盘；游戏退出后可自动恢复窗口。"
+                        <TextBlock Text="{loc:Tr Settings.WindowTray}" Classes="h2" FontSize="16" />
+                        <TextBlock Text="{loc:Tr Settings.WindowTrayHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                     </StackPanel>
 
                     <Grid ColumnDefinitions="1*,1*" ColumnSpacing="16">
                         <StackPanel Spacing="6">
-                            <TextBlock Text="关闭窗口时" FontWeight="SemiBold" />
+                            <TextBlock Text="{loc:Tr Settings.WhenClose}" FontWeight="SemiBold" />
                             <ComboBox ItemsSource="{Binding CloseActionOptions}"
                                       SelectedIndex="{Binding SelectedCloseActionIndex, Mode=TwoWay}" />
-                            <TextBlock Text="选择「最小化到托盘」时，可从托盘菜单重新显示或彻底退出。"
+                            <TextBlock Text="{loc:Tr Settings.CloseHint}"
                                        Classes="muted"
                                        FontSize="12"
                                        TextWrapping="Wrap" />
                         </StackPanel>
                         <StackPanel Grid.Column="1" Spacing="6">
-                            <TextBlock Text="游戏启动后" FontWeight="SemiBold" />
+                            <TextBlock Text="{loc:Tr Settings.AfterLaunch}" FontWeight="SemiBold" />
                             <ComboBox ItemsSource="{Binding GameLaunchActionOptions}"
                                       SelectedIndex="{Binding SelectedGameLaunchActionIndex, Mode=TwoWay}" />
-                            <TextBlock Text="游戏进程成功启动后自动执行该操作，避免启动器挡住游戏画面。"
+                            <TextBlock Text="{loc:Tr Settings.LaunchHint}"
                                        Classes="muted"
                                        FontSize="12"
                                        TextWrapping="Wrap" />
@@ -88,9 +88,9 @@
                     </Grid>
 
                     <CheckBox IsChecked="{Binding RestoreAfterGameExit, Mode=TwoWay}"
-                              Content="游戏退出后自动恢复启动器窗口" />
+                              Content="{loc:Tr Settings.RestoreAfterExit}" />
 
-                    <TextBlock Text="以上选项立即生效，点击「保存全局设置」后持久化。"
+                    <TextBlock Text="{loc:Tr Settings.SaveHint}"
                                Classes="muted"
                                FontSize="12" />
                 </StackPanel>
@@ -100,8 +100,8 @@
                 <Border Grid.Column="0" Classes="card">
                     <StackPanel Spacing="14">
                         <StackPanel Spacing="3">
-                            <TextBlock Text="界面语言" Classes="h2" FontSize="16" />
-                            <TextBlock Text="多语言将在后续版本提供，当前仅支持简体中文。"
+                            <TextBlock Text="{loc:Tr Settings.Language}" Classes="h2" FontSize="16" />
+                            <TextBlock Text="{loc:Tr Settings.LanguageHint}"
                                        Classes="muted"
                                        TextWrapping="Wrap" />
                         </StackPanel>
@@ -113,8 +113,8 @@
                 <Border Grid.Column="1" Classes="card">
                     <StackPanel Spacing="14">
                         <StackPanel Spacing="3">
-                            <TextBlock Text="启动器数据" Classes="h2" FontSize="16" />
-                            <TextBlock Text="设置、账户缓存与日志保存在这里。"
+                            <TextBlock Text="{loc:Tr Settings.Data}" Classes="h2" FontSize="16" />
+                            <TextBlock Text="{loc:Tr Settings.DataHint}"
                                        Classes="muted" />
                         </StackPanel>
                         <Border Background="{StaticResource FieldBrush}"
@@ -133,15 +133,15 @@
             <Border Classes="card" Padding="18">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
                     <StackPanel Spacing="4">
-                        <TextBlock Text="版本专属设置已移至「版本设置」"
+                        <TextBlock Text="{loc:Tr Settings.VersionSettingsMoved}"
                                    FontWeight="SemiBold" />
-                        <TextBlock Text="请在主页选择已下载的版本，点击「版本设置」调整 Java、内存、窗口、登录方式、自动进服、JVM/游戏参数与启动前命令。每个版本的配置都会持久保存。"
+                        <TextBlock Text="{loc:Tr Settings.VersionSettingsHint}"
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                     </StackPanel>
                     <Button Grid.Column="1"
                             Classes="primary"
-                            Content="保存全局设置"
+                            Content="{loc:Tr Settings.Save}"
                             Padding="24,10"
                             VerticalAlignment="Center"
                             IsEnabled="{Binding !Session.IsBusy}"

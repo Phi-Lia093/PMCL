@@ -8,6 +8,8 @@ using CommunityToolkit.Mvvm.Input;
 using PMCL.Models;
 using PMCL.Services;
 
+using PMCL.Localization;
+
 namespace PMCL.ViewModels;
 
 /// <summary>
@@ -88,7 +90,7 @@ public sealed partial class LauncherSession : ObservableObject
     public partial double Progress { get; set; }
 
     [ObservableProperty]
-    public partial string StatusMessage { get; set; } = "准备就绪";
+    public partial string StatusMessage { get; set; } = L.Tr("Status.Ready");
 
     [ObservableProperty]
     public partial string? LastError { get; set; }
@@ -104,7 +106,7 @@ public sealed partial class LauncherSession : ObservableObject
 
     [ObservableProperty]
     public partial string DownloadSourceText { get; set; } =
-        "下载源：" + DownloadSourceKind.Official.ToDisplayName();
+        L.Tr("Status.DownloadSourcePrefix") + DownloadSourceKind.Official.ToDisplayName();
 
     [ObservableProperty]
     public partial bool IsGameStarting { get; set; }
@@ -131,13 +133,13 @@ public sealed partial class LauncherSession : ObservableObject
 
     public bool HasError => !string.IsNullOrWhiteSpace(LastError);
 
-    public string AccountName => Account?.Username ?? "未登录";
+    public string AccountName => Account?.Username ?? L.Tr("Account.NotLoggedIn");
 
-    public string AccountKindLabel => Account?.KindLabel ?? "登录后即可开始游戏";
+    public string AccountKindLabel => Account?.KindLabel ?? L.Tr("Account.LoginToPlay");
 
     public string AccountInitial => Account?.Initial ?? "?";
 
-    public string AccountDetailText => Account?.Detail ?? "选择或添加一个账户以开始游戏。";
+    public string AccountDetailText => Account?.Detail ?? L.Tr("Account.SelectOrAdd");
 
     public bool HasSelectedVersion => SelectedVersion is not null;
 
@@ -150,10 +152,10 @@ public sealed partial class LauncherSession : ObservableObject
     public bool CanOpenVersionSettings => HasInstalledSelection && !IsBusy;
 
     public string GameRunningButtonText => IsGameRunning
-        ? $"游戏中 · {GameElapsedText}"
-        : "开始游戏";
+        ? L.Format("Game.PlayingFor", GameElapsedText)
+        : L.Tr("Home.StartGamePlain");
 
-    public string SelectedVersionName => SelectedVersion?.Name ?? "请选择版本";
+    public string SelectedVersionName => SelectedVersion?.Name ?? L.Tr("Version.Select");
 
     public GameVersionSettings? SelectedVersionSettings => SelectedVersion is null
         ? null
@@ -267,7 +269,7 @@ public sealed partial class LauncherSession : ObservableObject
         }
         catch (Exception ex)
         {
-            SetError($"无法结束游戏进程：{ex.Message}");
+            SetError(L.Format("Game.CloseFailed", ex.Message));
         }
     }
 
@@ -304,7 +306,7 @@ public sealed partial class LauncherSession : ObservableObject
         GameExited?.Invoke(this, EventArgs.Empty);
 
         if (!HasError)
-            SetStatus($"Minecraft {GameRunningVersion} 已退出");
+            SetStatus(L.Format("Game.Exited", GameRunningVersion));
     }
 
     private void UpdateGameElapsedEnd()
@@ -334,14 +336,19 @@ public sealed partial class LauncherSession : ObservableObject
     public void UpdateDownloadMetrics(long progressedBytes, long totalBytes, double bytesPerSecond)
     {
         DownloadBytesText = totalBytes > 0
-            ? $"已下载 {DownloadSpeedTracker.FormatBytes(progressedBytes)} / {DownloadSpeedTracker.FormatBytes(totalBytes)}"
-            : $"已下载 {DownloadSpeedTracker.FormatBytes(progressedBytes)}";
+            ? L.Format(
+                "Status.DownloadedWithTotal",
+                DownloadSpeedTracker.FormatBytes(progressedBytes),
+                DownloadSpeedTracker.FormatBytes(totalBytes))
+            : L.Format(
+                "Status.Downloaded",
+                DownloadSpeedTracker.FormatBytes(progressedBytes));
 
         DownloadSpeedText = DownloadSpeedTracker.FormatSpeed(bytesPerSecond);
     }
 
     public void RefreshDownloadSourceText()
-        => DownloadSourceText = "下载源：" + Settings.DownloadSource.ToDisplayName();
+        => DownloadSourceText = L.Tr("Status.DownloadSourcePrefix") + Settings.DownloadSource.ToDisplayName();
 
     public void SetStatus(string message)
     {
@@ -359,7 +366,7 @@ public sealed partial class LauncherSession : ObservableObject
     private void ClearError()
     {
         LastError = null;
-        StatusMessage = "准备就绪";
+        StatusMessage = L.Tr("Status.Ready");
     }
 
     public void ApplyVersions(IEnumerable<GameVersion> versions)

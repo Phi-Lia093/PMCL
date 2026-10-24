@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PMCL.Localization;
 using PMCL.Models;
 using PMCL.Services;
 
@@ -30,7 +31,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
         _refreshVersionsAsync = refreshVersionsAsync;
 
         GameDirectory = session.Settings.GameDirectory;
-        SelectedLanguageIndex = 0;
+        SelectedLanguageIndex = FindLanguageIndex(session.Settings.Language);
         SelectedDownloadSourceIndex =
             session.Settings.DownloadSource == DownloadSourceKind.BmclApi ? 1 : 0;
         SelectedCloseActionIndex =
@@ -46,25 +47,26 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     public LauncherSession Session { get; }
 
-    public IReadOnlyList<string> LanguageOptions { get; } = new[] { "简体中文" };
+    public IReadOnlyList<string> LanguageOptions { get; } =
+        LocalizationService.Instance.Languages.Select(option => option.DisplayName).ToArray();
 
     public IReadOnlyList<string> DownloadSourceOptions { get; } = new[]
     {
-        "官方源（推荐）",
-        "BMCLAPI 镜像（官方回退）"
+        L.Tr("Settings.DownloadSource.Official"),
+        L.Tr("Settings.DownloadSource.BmclApi")
     };
 
     public IReadOnlyList<string> CloseActionOptions { get; } = new[]
     {
-        "最小化到托盘",
-        "退出启动器"
+        L.Tr("Settings.CloseAction.Minimize"),
+        L.Tr("Settings.CloseAction.Exit")
     };
 
     public IReadOnlyList<string> GameLaunchActionOptions { get; } = new[]
     {
-        "不做任何操作",
-        "最小化到托盘",
-        "退出启动器"
+        L.Tr("Settings.LaunchAction.None"),
+        L.Tr("Settings.LaunchAction.Minimize"),
+        L.Tr("Settings.LaunchAction.Exit")
     };
 
     public string DownloadSourceDescription => GetSelectedDownloadSource().ToDescription();
@@ -92,7 +94,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
     [RelayCommand]
     private async Task BrowseGameDirectoryAsync()
     {
-        var folder = await _picker.PickFolderAsync("选择 .minecraft 游戏目录");
+        var folder = await _picker.PickFolderAsync(L.Tr("Settings.PickGameDirectory"));
         if (!string.IsNullOrWhiteSpace(folder))
             GameDirectory = folder;
     }
@@ -116,15 +118,14 @@ public sealed partial class SettingsViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Session.SetError($"游戏目录无效：{ex.Message}");
+            Session.SetError(L.Format("Settings.InvalidGameDirectory", ex.Message));
             return;
         }
 
         var previousDirectory = Session.Settings.GameDirectory;
+        var previousLanguage = LocalizationService.Instance.CurrentLanguage;
         Session.Settings.GameDirectory = directory;
-        Session.Settings.Language = string.IsNullOrWhiteSpace(Session.Settings.Language)
-            ? "zh-CN"
-            : Session.Settings.Language;
+        Session.Settings.Language = GetSelectedLanguage();
         Session.Settings.DownloadSource = GetSelectedDownloadSource();
         Session.Settings.CloseAction = GetSelectedCloseAction();
         Session.Settings.OnGameLaunchAction = GetSelectedGameLaunchAction();
@@ -133,7 +134,7 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
         if (!_settingsService.TrySave(Session.Settings, out var error))
         {
-            Session.SetError($"保存设置失败：{error}");
+            Session.SetError(L.Format("Settings.SaveFailed", error));
             return;
         }
 
@@ -146,7 +147,24 @@ public sealed partial class SettingsViewModel : ViewModelBase
             await _refreshVersionsAsync();
         }
 
-        Session.SetStatus("全局设置已保存");
+        Session.SetStatus(string.Equals(previousLanguage, Session.Settings.Language, StringComparison.OrdinalIgnoreCase)
+            ? L.Tr("Settings.Saved")
+            : L.Tr("Settings.SavedRestart"));
+    }
+
+    private string GetSelectedLanguage()
+        => LocalizationService.Instance.Languages[
+            Math.Clamp(SelectedLanguageIndex, 0, LocalizationService.Instance.Languages.Count - 1)].Code;
+
+    private static int FindLanguageIndex(string? language)
+    {
+        for (var i = 0; i < LocalizationService.Instance.Languages.Count; i++)
+        {
+            if (string.Equals(LocalizationService.Instance.Languages[i].Code, language, StringComparison.OrdinalIgnoreCase))
+                return i;
+        }
+
+        return 0;
     }
 
     private DownloadSourceKind GetSelectedDownloadSource()
