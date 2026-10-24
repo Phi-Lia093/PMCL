@@ -44,6 +44,28 @@ public sealed partial class LauncherSettings : ObservableObject
     public partial DownloadSourceKind DownloadSource { get; set; } = DownloadSourceKind.Official;
 
     /// <summary>
+    /// Window close behaviour. Minimizing keeps the launcher alive in the
+    /// notification area, while Exit terminates it completely.
+    /// </summary>
+    [ObservableProperty]
+    public partial LauncherCloseAction CloseAction { get; set; } =
+        LauncherCloseAction.MinimizeToTray;
+
+    /// <summary>
+    /// Window action applied after the game process has been started.
+    /// </summary>
+    [ObservableProperty]
+    public partial GameLaunchWindowAction OnGameLaunchAction { get; set; } =
+        GameLaunchWindowAction.MinimizeToTray;
+
+    /// <summary>
+    /// Restores and activates the launcher when Minecraft exits, as long as the
+    /// launcher is still hidden in the tray.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool RestoreAfterGameExit { get; set; } = true;
+
+    /// <summary>
     /// Launch options keyed by the installed version folder name.
     /// </summary>
     public Dictionary<string, GameVersionSettings> VersionSettings { get; set; } = new();

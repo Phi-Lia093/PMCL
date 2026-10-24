@@ -342,13 +342,67 @@ public sealed class GameLaunchCoordinator
         });
     }
 
-
-
-
-    public async Task LaunchAsync(LauncherSession session, GameVersion version)
+    private async Task<Process> BuildLaunchProcessAsync(
+        LauncherSession session,
+        GameVersion version,
+        MSession login,
+        GameVersionSettings settings)
     {
-        if (session.IsBusy)
-            return;
+        try
+        {
+            return await _minecraft.BuildProcessAsync(
+                    session.Settings.GameDirectory,
+                    version.Name,
+                    login,
+                    settings,
+                    CancellationToken.None)
+                .ConfigureAwait(true);
+        }
+        catch (Exception ex) when (IsMissingFileException(ex))
+        {
+            // Building the process extracts natives. A partially installed
+            // version can fail here before the classpath can be inspected.
+            await RepairLaunchFilesAsync(session, version).ConfigureAwait(true);
+            return await _minecraft.BuildProcessAsync(
+                    session.Settings.GameDirectory,
+                    version.Name,
+                    login,
+                    settings,
+                    CancellationToken.None)
+                .ConfigureAwait(true);
+        }
+    }
+
+    private async Task RepairLaunchFilesAsync(
+        LauncherSession session,
+        GameVersion version)
+    {
+        session.IsProgressIndeterminate = true;
+        session.SetStatus("正在补全缺失的启动文件...");
+        await _minecraft.InstallAsync(
+                session.Settings.GameDirectory,
+                version.Name,
+                CreateFileProgress(session, version.Name),
+                CreateByteProgress(session),
+                CancellationToken.None)
+            .ConfigureAwait(true);
+    }
+
+    private static bool IsMissingFileException(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is FileNotFoundException or DirectoryNotFoundException)
+                return true;
+        }
+
+        return false;
+    }
+
+    public async Task<Process?> LaunchAsync(LauncherSession session, GameVersion version)
+    {
+        if (session.IsBusy || session.IsGameRunning)
+            return null;
 
         var settings = session.Settings.GetVersionSettings(version.Name);
         MSession login;
@@ -361,9 +415,10 @@ public sealed class GameLaunchCoordinator
         catch (Exception ex)
         {
             session.SetError($"无法启动 {version.Name}：{ex.Message}");
-            return;
+            return null;
         }
 
+        session.BeginGameStarting();
         session.BeginBusy($"正在启动 Minecraft {version.Name}...");
 
         try
@@ -378,12 +433,36 @@ public sealed class GameLaunchCoordinator
                 session.Settings.GameDirectory,
                 version.Name);
 
-            var process = await _minecraft.BuildProcessAsync(
-                session.Settings.GameDirectory,
-                version.Name,
+            var process = await BuildLaunchProcessAsync(
+                session,
+                version,
                 login,
-                settings,
-                CancellationToken.None);
+                settings);
+
+            var missingFiles = MinecraftService.FindMissingLaunchFiles(process);
+            if (missingFiles.Count > 0)
+            {
+                // Older Forge installer profiles reference runtime libraries
+                // that are not part of install_profile.json. Repair the final
+                // profile automatically instead of starting a JVM that exits
+                // immediately with "Could not find or load main class".
+                await RepairLaunchFilesAsync(session, version);
+
+                process = await BuildLaunchProcessAsync(
+                    session,
+                    version,
+                    login,
+                    settings);
+
+                missingFiles = MinecraftService.FindMissingLaunchFiles(process);
+                if (missingFiles.Count > 0)
+                {
+                    var preview = string.Join("、", missingFiles.Take(3));
+                    throw new InvalidOperationException(
+                        $"启动文件仍然缺失：{preview}" +
+                        (missingFiles.Count > 3 ? " 等" : string.Empty));
+                }
+            }
 
             if (!string.IsNullOrWhiteSpace(settings.PreLaunchCommand))
             {
@@ -400,11 +479,16 @@ public sealed class GameLaunchCoordinator
 
             session.MarkInstalled(version.Name);
             _settingsService.SaveSilently(session.Settings);
-            session.SetStatus($"Minecraft {version.Name} 已启动，祝你好运！");
+            session.AttachGameProcess(version.Name, process);
+            if (session.IsGameRunning)
+                session.SetStatus($"Minecraft {version.Name} 已启动，游戏运行中");
+            return process;
         }
         catch (Exception ex)
         {
+            session.CancelGameStarting();
             session.SetError($"启动 {version.Name} 失败：{ex.Message}");
+            return null;
         }
         finally
         {

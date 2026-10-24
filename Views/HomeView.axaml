@@ -60,14 +60,35 @@
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
-                            <Button Grid.Column="1"
-                                    Classes="primary"
-                                    Margin="10,0,0,0"
-                                    Padding="30,12"
-                                    FontSize="15"
-                                    Content="▶  开始游戏"
-                                    Command="{Binding LaunchCommand}"
-                                    IsEnabled="{Binding Session.CanStartGame}" />
+                            <Grid Grid.Column="1" Margin="10,0,0,0">
+                                <Button Classes="primary"
+                                        Padding="30,12"
+                                        FontSize="15"
+                                        Command="{Binding LaunchCommand}"
+                                        IsEnabled="{Binding Session.CanStartGame}"
+                                        IsVisible="{Binding !Session.IsGameRunning}">
+                                    <StackPanel Orientation="Horizontal" Spacing="10">
+                                        <ProgressBar Width="20"
+                                                     Height="6"
+                                                     VerticalAlignment="Center"
+                                                     IsIndeterminate="True"
+                                                     IsVisible="{Binding Session.IsGameStarting}" />
+                                        <TextBlock Text="▶  开始游戏"
+                                                   VerticalAlignment="Center"
+                                                   IsVisible="{Binding !Session.IsGameStarting}" />
+                                        <TextBlock Text="正在启动…"
+                                                   VerticalAlignment="Center"
+                                                   IsVisible="{Binding Session.IsGameStarting}" />
+                                    </StackPanel>
+                                </Button>
+                                <Button Classes="primary"
+                                        Padding="30,12"
+                                        FontSize="15"
+                                        Content="{Binding Session.GameRunningButtonText}"
+                                        Command="{Binding ShowGameSessionCommand}"
+                                        IsVisible="{Binding Session.IsGameRunning}"
+                                        ToolTip.Tip="点击查看正在运行的游戏会话" />
+                            </Grid>
                         </Grid>
 
                         <StackPanel Orientation="Horizontal" Spacing="10">

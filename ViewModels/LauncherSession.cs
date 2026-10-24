@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Diagnostics;
+using Avalonia.Threading;
 using CmlLib.Core.Auth;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,16 +11,41 @@ using PMCL.Services;
 namespace PMCL.ViewModels;
 
 /// <summary>
+/// Raised after a Minecraft process has been started successfully.
+/// </summary>
+public sealed class GameStartedEventArgs(string versionName) : EventArgs
+{
+    public string VersionName { get; } = versionName;
+}
+
+/// <summary>
 /// Shared UI state: current account, selected version, version catalog and global progress.
 /// </summary>
 public sealed partial class LauncherSession : ObservableObject
 {
+    private readonly DispatcherTimer _gameTimer;
+    private Process? _gameProcess;
+    private DateTime _gameStartedAt;
+
     public LauncherSession(LauncherSettings settings)
     {
         Settings = settings;
         InstalledVersions.CollectionChanged += OnInstalledVersionsChanged;
+        _gameTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _gameTimer.Tick += (_, _) => UpdateGameElapsed();
         RefreshDownloadSourceText();
     }
+
+    /// <summary>
+    /// Raised on the UI thread when a game process has been attached.
+    /// </summary>
+    public event EventHandler<GameStartedEventArgs>? GameStarted;
+
+    /// <summary>
+    /// Raised on the UI thread after the tracked game process exits.
+    /// </summary>
+    public event EventHandler? GameExited;
+
 
     public LauncherSettings Settings { get; }
 
@@ -79,6 +106,21 @@ public sealed partial class LauncherSession : ObservableObject
     public partial string DownloadSourceText { get; set; } =
         "下载源：" + DownloadSourceKind.Official.ToDisplayName();
 
+    [ObservableProperty]
+    public partial bool IsGameStarting { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsGameRunning { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsGameClosePromptVisible { get; set; }
+
+    [ObservableProperty]
+    public partial string GameElapsedText { get; set; } = "00:00:00";
+
+    [ObservableProperty]
+    public partial string GameRunningVersion { get; set; } = string.Empty;
+
     public bool HasDownloadMetrics =>
         !string.IsNullOrWhiteSpace(DownloadSpeedText)
         || !string.IsNullOrWhiteSpace(DownloadBytesText);
@@ -103,9 +145,13 @@ public sealed partial class LauncherSession : ObservableObject
 
     public bool HasInstalledSelection => SelectedVersion is { IsInstalled: true };
 
-    public bool CanStartGame => HasInstalledSelection && !IsBusy;
+    public bool CanStartGame => HasInstalledSelection && !IsBusy && !IsGameRunning && !IsGameStarting;
 
     public bool CanOpenVersionSettings => HasInstalledSelection && !IsBusy;
+
+    public string GameRunningButtonText => IsGameRunning
+        ? $"游戏中 · {GameElapsedText}"
+        : "开始游戏";
 
     public string SelectedVersionName => SelectedVersion?.Name ?? "请选择版本";
 
@@ -151,6 +197,124 @@ public sealed partial class LauncherSession : ObservableObject
         RefreshDownloadSourceText();
         IsBusy = true;
         StatusMessage = status;
+    }
+
+    public void BeginGameStarting()
+    {
+        IsGameStarting = true;
+        IsGameClosePromptVisible = false;
+    }
+
+    public void CancelGameStarting()
+    {
+        IsGameStarting = false;
+    }
+
+    /// <summary>
+    /// Starts tracking a launched Minecraft process and exposes its elapsed
+    /// play time to the home page.
+    /// </summary>
+    public void AttachGameProcess(string versionName, Process process)
+    {
+        if (_gameProcess is { HasExited: false } previous
+            && !ReferenceEquals(previous, process))
+        {
+            previous.Exited -= OnGameProcessExited;
+            if (!previous.HasExited)
+                previous.Kill(entireProcessTree: true);
+        }
+
+        _gameProcess = process;
+        _gameStartedAt = DateTime.Now;
+        GameRunningVersion = versionName;
+        IsGameClosePromptVisible = false;
+        IsGameStarting = false;
+        IsGameRunning = true;
+        GameElapsedText = "00:00:00";
+        _gameTimer.Start();
+
+        process.EnableRaisingEvents = true;
+        process.Exited += OnGameProcessExited;
+
+        if (process.HasExited)
+        {
+            HandleGameProcessExit(process);
+            return;
+        }
+
+        GameStarted?.Invoke(this, new GameStartedEventArgs(versionName));
+    }
+
+    [RelayCommand]
+    private void ShowGameClosePrompt() => IsGameClosePromptVisible = true;
+
+    [RelayCommand]
+    private void DismissGameClosePrompt() => IsGameClosePromptVisible = false;
+
+    [RelayCommand]
+    private void CloseGame()
+    {
+        IsGameClosePromptVisible = false;
+
+        var process = _gameProcess;
+        if (process is null)
+            return;
+
+        try
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+        catch (Exception ex)
+        {
+            SetError($"无法结束游戏进程：{ex.Message}");
+        }
+    }
+
+    private void UpdateGameElapsed()
+    {
+        if (!IsGameRunning)
+            return;
+
+        var elapsed = DateTime.Now - _gameStartedAt;
+        if (elapsed < TimeSpan.Zero)
+            elapsed = TimeSpan.Zero;
+
+        GameElapsedText =
+            $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
+    }
+
+    private void OnGameProcessExited(object? sender, EventArgs e)
+    {
+        if (sender is Process process)
+            Dispatcher.UIThread.Post(() => HandleGameProcessExit(process));
+    }
+
+    private void HandleGameProcessExit(Process process)
+    {
+        if (!ReferenceEquals(process, _gameProcess))
+            return;
+
+        process.Exited -= OnGameProcessExited;
+        _gameProcess = null;
+        _gameTimer.Stop();
+        IsGameRunning = false;
+        IsGameStarting = false;
+        UpdateGameElapsedEnd();
+        GameExited?.Invoke(this, EventArgs.Empty);
+
+        if (!HasError)
+            SetStatus($"Minecraft {GameRunningVersion} 已退出");
+    }
+
+    private void UpdateGameElapsedEnd()
+    {
+        var elapsed = DateTime.Now - _gameStartedAt;
+        if (elapsed < TimeSpan.Zero)
+            elapsed = TimeSpan.Zero;
+
+        GameElapsedText =
+            $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
     }
 
     public void EndBusy()
@@ -346,6 +510,17 @@ public sealed partial class LauncherSession : ObservableObject
         OnPropertyChanged(nameof(IsNotBusy));
         NotifySelectionStateChanged();
     }
+
+    partial void OnIsGameRunningChanged(bool value)
+    {
+        OnPropertyChanged(nameof(GameRunningButtonText));
+        NotifySelectionStateChanged();
+    }
+
+    partial void OnIsGameStartingChanged(bool value) => NotifySelectionStateChanged();
+
+    partial void OnGameElapsedTextChanged(string value)
+        => OnPropertyChanged(nameof(GameRunningButtonText));
 
     partial void OnLastErrorChanged(string? value) => OnPropertyChanged(nameof(HasError));
 

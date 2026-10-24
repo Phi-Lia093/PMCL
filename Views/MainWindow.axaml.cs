@@ -1,51 +1,191 @@
 using System;
-using System.Runtime.InteropServices;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using PMCL.Models;
+using PMCL.ViewModels;
 
 namespace PMCL.Views;
 
+/// <summary>
+/// Borderless shell window. Hosts the custom title bar (drag / maximize /
+/// minimize / close), reacts to the configured close action and keeps the
+/// launcher available from the notification-area icon while the game runs.
+/// </summary>
 public partial class MainWindow : Window
 {
-    private const int DwmwaUseImmersiveDarkMode = 20;
-    private const int DwmwaUseImmersiveDarkModeLegacy = 19;
-    private const int DwmwaCaptionColor = 35;
-    private const int DwmwaTextColor = 36;
+    private LauncherSession? _session;
+    private bool _isExiting;
+    private bool _isHiddenToTray;
 
     public MainWindow()
     {
         InitializeComponent();
-        Opened += (_, _) => ApplyDarkTitleBar();
     }
 
     /// <summary>
-    /// Paints the native Windows title bar dark so it blends with the launcher theme.
-    /// Silently ignored on non-Windows platforms or older Windows builds.
+    /// True while the window is hidden and only the tray icon remains.
     /// </summary>
-    private void ApplyDarkTitleBar()
+    public bool IsHiddenToTray => _isHiddenToTray;
+
+    private LauncherSession? Session => (DataContext as MainViewModel)?.Session;
+
+    protected override void OnDataContextChanged(EventArgs e)
     {
-        if (!OperatingSystem.IsWindows())
-            return;
+        base.OnDataContextChanged(e);
 
-        var handle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-        if (handle == IntPtr.Zero)
-            return;
+        if (_session is not null)
+        {
+            _session.GameStarted -= OnGameStarted;
+            _session.GameExited -= OnGameExited;
+        }
 
-        var enabled = 1;
-        if (DwmSetWindowAttribute(handle, DwmwaUseImmersiveDarkMode, ref enabled, sizeof(int)) != 0)
-            DwmSetWindowAttribute(handle, DwmwaUseImmersiveDarkModeLegacy, ref enabled, sizeof(int));
+        _session = Session;
 
-        // COLORREF is 0x00BBGGRR.
-        var captionColor = 0x001B120E; // #0E121B
-        DwmSetWindowAttribute(handle, DwmwaCaptionColor, ref captionColor, sizeof(int));
-
-        var textColor = 0x00F2F5FF; // #F2F5FF
-        DwmSetWindowAttribute(handle, DwmwaTextColor, ref textColor, sizeof(int));
+        if (_session is not null)
+        {
+            _session.GameStarted += OnGameStarted;
+            _session.GameExited += OnGameExited;
+        }
     }
 
-    [DllImport("dwmapi.dll", PreserveSig = true)]
-    private static extern int DwmSetWindowAttribute(
-        IntPtr hwnd,
-        int attribute,
-        ref int attributeValue,
-        int attributeSize);
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        base.OnClosing(e);
+
+        if (e.Cancel || _isExiting)
+            return;
+
+        if (Session?.Settings.CloseAction != LauncherCloseAction.MinimizeToTray)
+            return;
+
+        e.Cancel = true;
+        HideToTray();
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property != WindowStateProperty)
+            return;
+
+        if (MaximizeButton is not null)
+            MaximizeButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
+    }
+
+    /// <summary>
+    /// Hides the window without shutting the launcher down so downloads and
+    /// the game session keep running in the background.
+    /// </summary>
+    public void HideToTray()
+    {
+        _isHiddenToTray = true;
+        ShowInTaskbar = false;
+        Hide();
+        Session?.SetStatus("已最小化到托盘，双击托盘图标可重新打开启动器");
+    }
+
+    /// <summary>
+    /// Restores the window from the notification area.
+    /// </summary>
+    public void ShowFromTray()
+    {
+        _isHiddenToTray = false;
+        ShowInTaskbar = true;
+        Show();
+
+        if (WindowState == WindowState.Minimized)
+            WindowState = WindowState.Normal;
+
+        Activate();
+    }
+
+    /// <summary>
+    /// Closes every window and terminates the launcher, bypassing the
+    /// minimize-to-tray close action.
+    /// </summary>
+    public void ExitApplication()
+    {
+        _isExiting = true;
+        Close();
+    }
+
+    private void OnGameStarted(object? sender, GameStartedEventArgs e)
+        => Dispatcher.UIThread.Post(() =>
+        {
+            var action = Session?.Settings.OnGameLaunchAction ?? GameLaunchWindowAction.None;
+            switch (action)
+            {
+                case GameLaunchWindowAction.MinimizeToTray:
+                    HideToTray();
+                    break;
+                case GameLaunchWindowAction.CloseLauncher:
+                    ExitApplication();
+                    break;
+            }
+        });
+
+    private void OnGameExited(object? sender, EventArgs e)
+        => Dispatcher.UIThread.Post(() =>
+        {
+            if (!_isHiddenToTray || Session?.Settings.RestoreAfterGameExit != true)
+                return;
+
+            ShowFromTray();
+        });
+
+    private void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.ClickCount > 1
+            || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
+            || IsCaptionButton(e.Source))
+            return;
+
+        if (WindowState == WindowState.Maximized)
+            return;
+
+        BeginMoveDrag(e);
+    }
+
+    private void TitleBar_DoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (IsCaptionButton(e.Source))
+            return;
+
+        ToggleMaximize();
+    }
+
+    private void MinimizeButton_Click(object? sender, RoutedEventArgs e)
+        => WindowState = WindowState.Minimized;
+
+    private void MaximizeButton_Click(object? sender, RoutedEventArgs e)
+        => ToggleMaximize();
+
+    private void CloseButton_Click(object? sender, RoutedEventArgs e)
+        => Close();
+
+    private void ToggleMaximize()
+    {
+        WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
+    }
+
+    private static bool IsCaptionButton(object? source)
+    {
+        if (source is not Visual visual)
+            return false;
+
+        for (Visual? current = visual; current is not null; current = current.GetVisualParent())
+        {
+            if (current is Button)
+                return true;
+        }
+
+        return false;
+    }
 }

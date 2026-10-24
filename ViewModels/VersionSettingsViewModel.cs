@@ -7,6 +7,21 @@ using PMCL.Services;
 
 namespace PMCL.ViewModels;
 
+/// <summary>Left navigation sections of the version settings page.</summary>
+public enum VersionSettingsSection
+{
+    Settings,
+    Mods,
+    ModDownloads,
+    Advanced
+}
+
+/// <summary>
+/// A Modrinth category shown in the mod download filter. The slug is sent
+/// through the API's <c>categories:</c> facet.
+/// </summary>
+public sealed record ModrinthCategoryOption(string DisplayName, string? Slug);
+
 /// <summary>
 /// Per-installed-version settings page: files, identity, Java, memory, login,
 /// server and launch arguments. Edits are auto-saved with a short debounce.
@@ -28,6 +43,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     private GameVersionSettings _model = new();
     private CancellationTokenSource? _saveDebounce;
     private bool _loading;
+    private VersionSettingsSection _selectedSection = VersionSettingsSection.Settings;
 
     public VersionSettingsViewModel(
         LauncherSession session,
@@ -86,6 +102,12 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
     public bool CanManageModLoader => _version is { IsInstalled: true };
 
+    /// <summary>
+    /// The loader card only appears on the general settings tab and only for
+    /// installed versions.
+    /// </summary>
+    public bool IsModLoaderCardVisible => IsSettingsSection && CanManageModLoader;
+
     public string CurrentLoaderLabel => _version?.LoaderLabel ?? "原版";
 
     public string LoaderBaseVersionLabel => _version is { IsModded: true }
@@ -143,6 +165,58 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         "离线账户"
     };
 
+    public IReadOnlyList<ModrinthCategoryOption> ModrinthCategoryOptions { get; } = new[]
+    {
+        new ModrinthCategoryOption("全部类型", null),
+        new ModrinthCategoryOption("科技", "technology"),
+        new ModrinthCategoryOption("魔法", "magic"),
+        new ModrinthCategoryOption("实用", "utility"),
+        new ModrinthCategoryOption("冒险", "adventure"),
+        new ModrinthCategoryOption("装饰", "decoration"),
+        new ModrinthCategoryOption("世界生成", "worldgen"),
+        new ModrinthCategoryOption("存储", "storage"),
+        new ModrinthCategoryOption("优化", "optimization"),
+        new ModrinthCategoryOption("库 / 前置", "library"),
+        new ModrinthCategoryOption("生物", "mobs"),
+        new ModrinthCategoryOption("装备", "equipment")
+    };
+
+    public IReadOnlyList<string> ModrinthSourceOptions { get; } = new[]
+    {
+        "Modrinth（可用）",
+        "CurseForge（即将支持）"
+    };
+
+    public VersionSettingsSection SelectedSection
+    {
+        get => _selectedSection;
+        private set
+        {
+            if (!SetProperty(ref _selectedSection, value))
+                return;
+
+            OnPropertyChanged(nameof(IsSettingsSection));
+            OnPropertyChanged(nameof(IsModsSection));
+            OnPropertyChanged(nameof(IsModDownloadsSection));
+            OnPropertyChanged(nameof(IsAdvancedSection));
+            OnPropertyChanged(nameof(IsModLoaderCardVisible));
+        }
+    }
+
+    public bool IsSettingsSection => SelectedSection == VersionSettingsSection.Settings;
+
+    public bool IsModsSection => SelectedSection == VersionSettingsSection.Mods;
+
+    public bool IsModDownloadsSection => SelectedSection == VersionSettingsSection.ModDownloads;
+
+    public bool IsAdvancedSection => SelectedSection == VersionSettingsSection.Advanced;
+
+    [ObservableProperty]
+    public partial int SelectedModrinthCategoryIndex { get; set; }
+
+    [ObservableProperty]
+    public partial int SelectedModrinthSourceIndex { get; set; }
+
     public ObservableCollection<ModItemViewModel> LocalMods { get; } = new();
 
     public ObservableCollection<ModrinthProjectItemViewModel> ModrinthResults { get; } = new();
@@ -159,9 +233,16 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
                                   && ModrinthService.SupportsLoader(_version.LoaderKind);
 
     public bool CanSearchModrinth =>
-        CanUseModrinth && !IsModrinthSearching && !IsModrinthInstalling;
+        CanUseModrinth
+        && IsModrinthSourceSelected
+        && !IsModrinthSearching
+        && !IsModrinthInstalling;
 
-    public string ModrinthSearchButtonText => IsModrinthSearching ? "搜索中..." : "搜索";
+    public bool IsModrinthSourceSelected => SelectedModrinthSourceIndex == 0;
+
+    public string ModrinthSearchButtonText => IsModrinthSearching
+        ? "搜索中..."
+        : IsModrinthSourceSelected ? "搜索" : "即将支持";
 
     public string ModrinthCompatibilityText
     {
@@ -271,6 +352,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         }
 
         _loading = true;
+        SelectedSection = VersionSettingsSection.Settings;
 
         _version = version;
         OnPropertyChanged(nameof(Version));
@@ -305,6 +387,8 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         LocalModStatusText = "尚未扫描模组文件夹。";
         ModrinthSearchText = string.Empty;
         ModrinthResults.Clear();
+        SelectedModrinthCategoryIndex = 0;
+        SelectedModrinthSourceIndex = 0;
         ModrinthStatusText = "搜索并安装兼容当前版本与加载器的模组，必需的前置模组会自动下载。";
 
         _loading = false;
@@ -329,6 +413,14 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
     {
         Flush();
         _goBack();
+    }
+
+    [RelayCommand]
+    private void SelectSection(string? sectionName)
+    {
+        SelectedSection = Enum.TryParse<VersionSettingsSection>(sectionName, out var section)
+            ? section
+            : VersionSettingsSection.Settings;
     }
 
     [RelayCommand]
@@ -468,15 +560,23 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         if (_version is null || !CanUseModrinth || IsModrinthSearching)
             return;
 
+        if (!IsModrinthSourceSelected)
+        {
+            ModrinthStatusText = "CurseForge 下载源即将支持，请先选择 Modrinth。";
+            return;
+        }
+
         IsModrinthSearching = true;
         ModrinthStatusText = "正在从 Modrinth 搜索兼容模组...";
         var versionName = _version.Name;
+        var category = ModrinthCategoryOptions.ElementAtOrDefault(SelectedModrinthCategoryIndex)?.Slug;
         try
         {
             var result = await _modrinthService.SearchAsync(
                 _version.BaseVersionName,
                 _version.LoaderKind,
-                ModrinthSearchText);
+                ModrinthSearchText,
+                category: category);
 
             if (_version is null
                 || !string.Equals(_version.Name, versionName, StringComparison.Ordinal))
@@ -984,6 +1084,7 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasModLoader));
         OnPropertyChanged(nameof(IsVanillaVersion));
         OnPropertyChanged(nameof(CanManageModLoader));
+        OnPropertyChanged(nameof(IsModLoaderCardVisible));
         OnPropertyChanged(nameof(CurrentLoaderLabel));
         OnPropertyChanged(nameof(LoaderBaseVersionLabel));
         OnPropertyChanged(nameof(CanUseModrinth));
@@ -1036,4 +1137,28 @@ public sealed partial class VersionSettingsViewModel : ViewModelBase
 
     partial void OnIsModrinthInstallingChanged(bool value)
         => OnPropertyChanged(nameof(CanSearchModrinth));
+
+    partial void OnSelectedModrinthSourceIndexChanged(int value)
+    {
+        OnPropertyChanged(nameof(IsModrinthSourceSelected));
+        OnPropertyChanged(nameof(CanSearchModrinth));
+        OnPropertyChanged(nameof(ModrinthSearchButtonText));
+
+        if (value != 0)
+        {
+            ModrinthStatusText = "CurseForge 下载源即将支持；当前版本可继续使用 Modrinth。";
+        }
+        else if (ModrinthResults.Count == 0)
+        {
+            ModrinthStatusText = "搜索并安装兼容当前版本与加载器的模组，必需的前置模组会自动下载。";
+        }
+    }
+
+    partial void OnSelectedModrinthCategoryIndexChanged(int value)
+    {
+        if (ModrinthResults.Count == 0)
+            return;
+
+        ModrinthStatusText = $"类型已切换为「{ModrinthCategoryOptions[value].DisplayName}」，点击搜索刷新结果。";
+    }
 }

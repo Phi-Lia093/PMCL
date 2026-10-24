@@ -9,7 +9,9 @@ using CmlLib.Core.Files;
 using CmlLib.Core.Installers;
 using CmlLib.Core.Installer.Forge;
 using CmlLib.Core.Installer.Forge.Installers;
+using CmlLib.Core.Java;
 using CmlLib.Core.ProcessBuilder;
+using CmlLib.Core.Version;
 using CmlLib.Core.VersionLoader;
 using CmlLib.Core.VersionMetadata;
 using PMCL.Models;
@@ -173,6 +175,21 @@ public sealed class MinecraftService
                 localInstallerPath,
                 remoteFileDownloader);
         await installer.Install(path, gameInstaller, options).ConfigureAwait(false);
+
+        // The installer profile only contains the loader artifact and processor
+        // libraries. The launch profile written by Forge/NeoForge (version.json)
+        // can reference additional libraries without download URLs in
+        // install_profile.json (for example launchwrapper, ASM, Scala and
+        // Log4j for Forge 1.12.2). Install the final profile as well, otherwise
+        // the game exits immediately with "Could not find or load main class".
+        InvalidateLauncher(path);
+        var installedLauncher = GetLauncher(path);
+        await installedLauncher.InstallAsync(
+                versionName,
+                fileProgress,
+                byteProgress,
+                cancellationToken)
+            .ConfigureAwait(false);
         InvalidateLauncher(path);
         return versionName;
     }
@@ -308,6 +325,12 @@ public sealed class MinecraftService
     {
         var path = CreatePath(gameDirectory);
         var launcher = GetLauncher(path);
+        var javaPath = await ResolveLaunchJavaPathAsync(
+                launcher,
+                versionName,
+                settings.JavaPath,
+                cancellationToken)
+            .ConfigureAwait(false);
 
         var option = new MLaunchOption
         {
@@ -319,7 +342,7 @@ public sealed class MinecraftService
             Session = session,
             MaximumRamMb = settings.MaximumRamMb,
             MinimumRamMb = settings.MinimumRamMb,
-            JavaPath = string.IsNullOrWhiteSpace(settings.JavaPath) ? null : settings.JavaPath,
+            JavaPath = javaPath,
             ScreenWidth = settings.WindowWidth,
             ScreenHeight = settings.WindowHeight,
             FullScreen = settings.FullScreen,
@@ -342,6 +365,90 @@ public sealed class MinecraftService
 
         return await launcher.BuildProcessAsync(versionName, option, cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Returns every Java executable or classpath entry referenced by a built
+    /// process that does not exist on disk. A non-empty result means the
+    /// version metadata is installed but its files were not completely
+    /// downloaded (common for older Forge installer profiles).
+    /// </summary>
+    public static IReadOnlyList<string> FindMissingLaunchFiles(Process process)
+    {
+        var missing = new List<string>();
+        var javaPath = process.StartInfo.FileName;
+        if (!string.IsNullOrWhiteSpace(javaPath) && !File.Exists(javaPath))
+            missing.Add(javaPath);
+
+        var arguments = GetProcessArguments(process).ToList();
+        for (var index = 0; index < arguments.Count - 1; index++)
+        {
+            if (!string.Equals(arguments[index], "-cp", StringComparison.Ordinal)
+                && !string.Equals(arguments[index], "-classpath", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            foreach (var entry in arguments[index + 1].Split(
+                         Path.PathSeparator,
+                         StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                // Classpath entries can contain a wildcard on hand-written
+                // profiles. Those are resolved by the JVM, not by this check.
+                if (entry.Contains('*') || File.Exists(entry))
+                    continue;
+
+                missing.Add(entry);
+            }
+
+            break;
+        }
+
+        return missing
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IEnumerable<string> GetProcessArguments(Process process)
+    {
+        if (process.StartInfo.ArgumentList.Count > 0)
+            return process.StartInfo.ArgumentList;
+
+        return CommandLineSplitter.Split(process.StartInfo.Arguments);
+    }
+
+    /// <summary>
+    /// Picks the Java runtime declared by the version metadata. Versions
+    /// without usable <c>javaVersion</c> metadata (for example 1.6.1) must use
+    /// Mojang's Java 8 runtime instead of whatever modern Java happens to be
+    /// installed. Returning the expected path even when the runtime is not
+    /// installed yet lets the launch path detect it and download the runtime
+    /// through CmlLib.
+    /// </summary>
+    private static async Task<string?> ResolveLaunchJavaPathAsync(
+        MinecraftLauncher launcher,
+        string versionName,
+        string configuredJavaPath,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(configuredJavaPath))
+            return configuredJavaPath;
+
+        var version = await launcher.GetVersionAsync(versionName, cancellationToken)
+            .ConfigureAwait(false);
+        var javaVersion = version.GetInheritedProperty(metadata => metadata.JavaVersion);
+
+        if (javaVersion is null || string.IsNullOrWhiteSpace(javaVersion.Component))
+        {
+            return launcher.JavaPathResolver.GetJavaBinaryPath(
+                MinecraftJavaPathResolver.JreLegacyVersion,
+                launcher.RulesContext);
+        }
+
+        return launcher.GetJavaPath(version)
+               ?? launcher.JavaPathResolver.GetJavaBinaryPath(
+                   MinecraftJavaPathResolver.JreLegacyVersion,
+                   launcher.RulesContext);
     }
 
     public string GetVersionDirectory(string gameDirectory, string versionName)

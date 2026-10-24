@@ -62,7 +62,36 @@
                 </Grid>
             </Border>
 
-            <Border Classes="card">
+            <Border Classes="card" Padding="8">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Classes="nav"
+                            Classes.active="{Binding IsSettingsSection}"
+                            Padding="18,8"
+                            Content="设置"
+                            Command="{Binding SelectSectionCommand}"
+                            CommandParameter="Settings" />
+                    <Button Classes="nav"
+                            Classes.active="{Binding IsModsSection}"
+                            Padding="18,8"
+                            Content="模组"
+                            Command="{Binding SelectSectionCommand}"
+                            CommandParameter="Mods" />
+                    <Button Classes="nav"
+                            Classes.active="{Binding IsModDownloadsSection}"
+                            Padding="18,8"
+                            Content="模组下载"
+                            Command="{Binding SelectSectionCommand}"
+                            CommandParameter="ModDownloads" />
+                    <Button Classes="nav"
+                            Classes.active="{Binding IsAdvancedSection}"
+                            Padding="18,8"
+                            Content="高级"
+                            Command="{Binding SelectSectionCommand}"
+                            CommandParameter="Advanced" />
+                </StackPanel>
+            </Border>
+
+            <Border Classes="card" IsVisible="{Binding IsSettingsSection}">
                 <StackPanel Spacing="14">
                     <TextBlock Text="版本信息" Classes="h2" FontSize="16" />
 
@@ -85,7 +114,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Classes="card">
+            <Border Classes="card" IsVisible="{Binding IsSettingsSection}">
                 <StackPanel Spacing="14">
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Spacing="3">
@@ -133,7 +162,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Classes="card">
+            <Border Classes="card" IsVisible="{Binding IsAdvancedSection}">
                 <StackPanel Spacing="14">
                     <StackPanel Spacing="3">
                         <TextBlock Text="游戏数据目录（自动隔离）" Classes="h2" FontSize="16" />
@@ -187,7 +216,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Classes="card" IsVisible="{Binding CanManageModLoader}">
+            <Border Classes="card" IsVisible="{Binding IsModLoaderCardVisible}">
                 <StackPanel Spacing="14">
                     <TextBlock Text="模组加载器" Classes="h2" FontSize="16" />
 
@@ -254,7 +283,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Classes="card">
+            <Border Classes="card" IsVisible="{Binding IsModsSection}">
                 <StackPanel Spacing="14">
                     <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                         <StackPanel Spacing="3">
@@ -379,7 +408,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Classes="card">
+            <Border Classes="card" IsVisible="{Binding IsModDownloadsSection}">
                 <StackPanel Spacing="14">
                     <StackPanel Spacing="3">
                         <TextBlock Text="从 Modrinth 下载模组" Classes="h2" FontSize="16" />
@@ -387,6 +416,31 @@
                                    Classes="muted"
                                    TextWrapping="Wrap" />
                     </StackPanel>
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="模组类型" Classes="muted" FontSize="12" />
+                            <ComboBox ItemsSource="{Binding ModrinthCategoryOptions}"
+                                      SelectedIndex="{Binding SelectedModrinthCategoryIndex}"
+                                      IsEnabled="{Binding CanUseModrinth}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ModrinthCategoryOption">
+                                        <TextBlock Text="{Binding DisplayName}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="6">
+                            <TextBlock Text="下载源" Classes="muted" FontSize="12" />
+                            <ComboBox ItemsSource="{Binding ModrinthSourceOptions}"
+                                      SelectedIndex="{Binding SelectedModrinthSourceIndex}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="该下载源尚未接入，当前仅支持 Modrinth。"
+                               Classes="muted"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding !IsModrinthSourceSelected}" />
 
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <TextBox Text="{Binding ModrinthSearchText}"
@@ -460,7 +514,8 @@
                 </StackPanel>
             </Border>
 
-            <Grid ColumnDefinitions="1*,1*" ColumnSpacing="16">
+            <Grid ColumnDefinitions="1*,1*" ColumnSpacing="16"
+                  IsVisible="{Binding IsSettingsSection}">
                 <Border Grid.Column="0" Classes="card">
                     <StackPanel Spacing="14">
                         <TextBlock Text="Java 与内存" Classes="h2" FontSize="16" />
@@ -572,7 +627,7 @@
                 </Border>
             </Grid>
 
-            <Border Classes="card">
+            <Border Classes="card" IsVisible="{Binding IsAdvancedSection}">
                 <StackPanel Spacing="14">
                     <StackPanel Spacing="3">
                         <TextBlock Text="高级启动参数" Classes="h2" FontSize="16" />
@@ -611,7 +666,7 @@
             </Border>
 
 
-            <Border Classes="card">
+            <Border Classes="card" IsVisible="{Binding IsAdvancedSection}">
                 <StackPanel Spacing="12">
                     <TextBlock Text="危险操作"
                                Classes="h2"

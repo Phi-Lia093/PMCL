@@ -12,38 +12,80 @@
         Width="1240" Height="800"
         MinWidth="1000" MinHeight="660"
         WindowStartupLocation="CenterScreen"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        WindowDecorations="BorderOnly"
         Background="{StaticResource AppBackgroundBrush}">
 
-    <Grid>
-        <Grid ColumnDefinitions="228,*">
+    <Window.Styles>
+        <Style Selector="Button.caption">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.caption:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#1A2233" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        </Style>
+        <Style Selector="Button.caption:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#222C40" />
+        </Style>
+        <Style Selector="Button.caption.close:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#C42B1C" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.caption.close:pressed /template/ ContentPresenter">
+            <Setter Property="Background" Value="#A32416" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="36,*">
+        <Grid Grid.Row="0"
+              Name="TitleBar"
+              ColumnDefinitions="228,*,Auto"
+              Background="Transparent"
+              PointerPressed="TitleBar_PointerPressed"
+              DoubleTapped="TitleBar_DoubleTapped">
+            <Border Grid.Column="0"
+                    Background="{StaticResource SidebarBrush}"
+                    BorderBrush="#1B2233"
+                    BorderThickness="0,0,1,0" />
+
+            <StackPanel Grid.Column="2"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Stretch">
+                <Button Classes="caption"
+                        Content="—"
+                        ToolTip.Tip="最小化"
+                        Click="MinimizeButton_Click" />
+                <Button Classes="caption"
+                        Name="MaximizeButton"
+                        Content="□"
+                        ToolTip.Tip="最大化 / 还原"
+                        Click="MaximizeButton_Click" />
+                <Button Classes="caption close"
+                        Content="✕"
+                        ToolTip.Tip="关闭"
+                        Click="CloseButton_Click" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1" ColumnDefinitions="228,*">
             <Border Grid.Column="0"
                     Background="{StaticResource SidebarBrush}"
                     BorderBrush="#1B2233"
                     BorderThickness="0,0,1,0">
-                <Grid RowDefinitions="Auto,*,Auto" Margin="16,20">
-
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <Border Width="38" Height="38" CornerRadius="11">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                                    <GradientStop Color="#8F73FF" Offset="0" />
-                                    <GradientStop Color="#5B3BD6" Offset="1" />
-                                </LinearGradientBrush>
-                            </Border.Background>
-                            <TextBlock Text="P"
-                                       FontSize="19"
-                                       FontWeight="Black"
-                                       Foreground="White"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center" />
-                        </Border>
-                        <StackPanel VerticalAlignment="Center" Spacing="0">
-                            <TextBlock Text="PMCL" FontSize="17" FontWeight="Bold" />
-                            <TextBlock Text="MineCraft Launcher" Classes="muted" FontSize="10" />
-                        </StackPanel>
-                    </StackPanel>
-
-                    <StackPanel Grid.Row="1" Spacing="4" Margin="0,30,0,0">
+                <Grid RowDefinitions="*,Auto" Margin="16,20">
+                    <StackPanel Spacing="4">
                         <TextBlock Text="导航" Classes="muted"
                                    Margin="12,0,0,8"
                                    FontSize="10"
@@ -80,14 +122,36 @@
                                 <TextBlock Text="设置" VerticalAlignment="Center" />
                             </StackPanel>
                         </Button>
+
+                        <Border Background="#101725"
+                                BorderBrush="#1F2A3C"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="12"
+                                Margin="0,18,0,0"
+                                IsVisible="{Binding Session.IsGameRunning}">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Minecraft 运行中"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource SuccessBrush}" />
+                                <TextBlock Text="{Binding Session.GameRunningVersion}"
+                                           FontSize="12"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding Session.GameElapsedText}"
+                                           Classes="muted"
+                                           FontSize="11" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
-                    <TextBlock Grid.Row="2"
+                    <TextBlock Grid.Row="1"
                                Text="{Binding AppVersionText}"
                                Classes="muted"
                                FontSize="10" />
                 </Grid>
             </Border>
+
 
             <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto">
                 <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="24,18,24,10">
@@ -184,7 +248,9 @@
             </Grid>
         </Grid>
 
-        <Border Background="#CC070A10"
+
+        <Border Grid.Row="1"
+                Background="#CC070A10"
                 IsVisible="{Binding Versions.LoaderSelector.IsOpen}">
             <views:ModLoaderSelectorView DataContext="{Binding Versions.LoaderSelector}"
                                          HorizontalAlignment="Center"
@@ -192,7 +258,8 @@
                                          Margin="24" />
         </Border>
 
-        <Border Background="#CC070A10"
+        <Border Grid.Row="1"
+                Background="#CC070A10"
                 IsVisible="{Binding VersionSettings.LoaderSelector.IsOpen}">
             <views:ModLoaderSelectorView DataContext="{Binding VersionSettings.LoaderSelector}"
                                          HorizontalAlignment="Center"
@@ -200,7 +267,8 @@
                                          Margin="24" />
         </Border>
 
-        <Border Background="#C4070A10"
+        <Border Grid.Row="1"
+                Background="#C4070A10"
                 IsVisible="{Binding Session.IsBusy}">
             <Border Classes="card"
                     Width="430"
@@ -208,12 +276,17 @@
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">
                 <StackPanel Spacing="14">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="正在处理" Classes="h2" />
-                        <TextBlock Text="{Binding Session.StatusMessage}"
-                                   Classes="muted"
-                                   TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <ProgressBar Width="56"
+                                     Height="4"
+                                     IsIndeterminate="True"
+                                     IsVisible="{Binding Session.IsGameStarting}"
+                                     VerticalAlignment="Center" />
+                        <TextBlock Text="正在处理" Classes="h2" VerticalAlignment="Center" />
                     </StackPanel>
+                    <TextBlock Text="{Binding Session.StatusMessage}"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
                     <ProgressBar Minimum="0" Maximum="1"
                                  Value="{Binding Session.Progress}"
                                  IsIndeterminate="{Binding Session.IsProgressIndeterminate}" />
@@ -238,8 +311,45 @@
                 </StackPanel>
             </Border>
         </Border>
+
+        <Border Grid.Row="1"
+                Background="#D4070A10"
+                IsVisible="{Binding Session.IsGameClosePromptVisible}">
+            <Border Classes="card"
+                    Width="440"
+                    Padding="26"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Minecraft 正在运行" Classes="h2" />
+                        <TextBlock Text="{Binding Session.GameRunningVersion}"
+                                   FontWeight="SemiBold"
+                                   Foreground="#C3B5FF" />
+                        <TextBlock Text="{Binding Session.GameElapsedText}"
+                                   Classes="muted"
+                                   FontSize="12" />
+                    </StackPanel>
+
+                    <TextBlock Text="要关闭游戏并返回启动器吗？未保存的游戏进度将会丢失。"
+                               Classes="muted"
+                               TextWrapping="Wrap" />
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Button Grid.Column="0"
+                                Classes="secondary"
+                                Content="继续游戏"
+                                HorizontalAlignment="Stretch"
+                                Command="{Binding Session.DismissGameClosePromptCommand}" />
+                        <Button Grid.Column="1"
+                                Classes="danger"
+                                Content="关闭游戏"
+                                HorizontalAlignment="Stretch"
+                                Command="{Binding Session.CloseGameCommand}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
-
-
-
 </Window>
+

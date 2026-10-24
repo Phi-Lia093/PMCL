@@ -57,6 +57,45 @@
                 </StackPanel>
             </Border>
 
+            <Border Classes="card">
+                <StackPanel Spacing="14">
+                    <StackPanel Spacing="3">
+                        <TextBlock Text="窗口与托盘" Classes="h2" FontSize="16" />
+                        <TextBlock Text="PMCL 使用无边框窗口与系统托盘图标。关闭窗口、启动游戏后都可以选择把启动器收进托盘；游戏退出后可自动恢复窗口。"
+                                   Classes="muted"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <Grid ColumnDefinitions="1*,1*" ColumnSpacing="16">
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="关闭窗口时" FontWeight="SemiBold" />
+                            <ComboBox ItemsSource="{Binding CloseActionOptions}"
+                                      SelectedIndex="{Binding SelectedCloseActionIndex, Mode=TwoWay}" />
+                            <TextBlock Text="选择「最小化到托盘」时，可从托盘菜单重新显示或彻底退出。"
+                                       Classes="muted"
+                                       FontSize="12"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="6">
+                            <TextBlock Text="游戏启动后" FontWeight="SemiBold" />
+                            <ComboBox ItemsSource="{Binding GameLaunchActionOptions}"
+                                      SelectedIndex="{Binding SelectedGameLaunchActionIndex, Mode=TwoWay}" />
+                            <TextBlock Text="游戏进程成功启动后自动执行该操作，避免启动器挡住游戏画面。"
+                                       Classes="muted"
+                                       FontSize="12"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+
+                    <CheckBox IsChecked="{Binding RestoreAfterGameExit, Mode=TwoWay}"
+                              Content="游戏退出后自动恢复启动器窗口" />
+
+                    <TextBlock Text="以上选项立即生效，点击「保存全局设置」后持久化。"
+                               Classes="muted"
+                               FontSize="12" />
+                </StackPanel>
+            </Border>
+
             <Grid ColumnDefinitions="1*,1*" ColumnSpacing="16">
                 <Border Grid.Column="0" Classes="card">
                     <StackPanel Spacing="14">

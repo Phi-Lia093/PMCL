@@ -31,13 +31,15 @@ public sealed partial class HomeViewModel : ViewModelBase
     public LauncherSession Session { get; }
 
     [RelayCommand]
-    private Task LaunchAsync()
+    private async Task LaunchAsync()
     {
         var version = Session.SelectedVersion;
-        return version is { IsInstalled: true }
-            ? _coordinator.LaunchAsync(Session, version)
-            : Task.CompletedTask;
+        if (version is { IsInstalled: true })
+            await _coordinator.LaunchAsync(Session, version);
     }
+
+    [RelayCommand]
+    private void ShowGameSession() => Session.ShowGameClosePromptCommand.Execute(null);
 
     [RelayCommand]
     private void OpenVersionSettings()

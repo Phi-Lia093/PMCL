@@ -96,6 +96,10 @@ public sealed class SettingsService
         settings.LastAccountId ??= string.Empty;
         if (!Enum.IsDefined(settings.DownloadSource))
             settings.DownloadSource = DownloadSourceKind.Official;
+        if (!Enum.IsDefined(settings.CloseAction))
+            settings.CloseAction = LauncherCloseAction.MinimizeToTray;
+        if (!Enum.IsDefined(settings.OnGameLaunchAction))
+            settings.OnGameLaunchAction = GameLaunchWindowAction.MinimizeToTray;
         settings.VersionSettings ??= new Dictionary<string, GameVersionSettings>();
 
         foreach (var versionName in settings.VersionSettings.Keys.ToList())

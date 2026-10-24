@@ -33,6 +33,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
         SelectedLanguageIndex = 0;
         SelectedDownloadSourceIndex =
             session.Settings.DownloadSource == DownloadSourceKind.BmclApi ? 1 : 0;
+        SelectedCloseActionIndex =
+            session.Settings.CloseAction == LauncherCloseAction.Exit ? 1 : 0;
+        SelectedGameLaunchActionIndex = session.Settings.OnGameLaunchAction switch
+        {
+            GameLaunchWindowAction.MinimizeToTray => 1,
+            GameLaunchWindowAction.CloseLauncher => 2,
+            _ => 0
+        };
+        RestoreAfterGameExit = session.Settings.RestoreAfterGameExit;
     }
 
     public LauncherSession Session { get; }
@@ -43,6 +52,19 @@ public sealed partial class SettingsViewModel : ViewModelBase
     {
         "官方源（推荐）",
         "BMCLAPI 镜像（官方回退）"
+    };
+
+    public IReadOnlyList<string> CloseActionOptions { get; } = new[]
+    {
+        "最小化到托盘",
+        "退出启动器"
+    };
+
+    public IReadOnlyList<string> GameLaunchActionOptions { get; } = new[]
+    {
+        "不做任何操作",
+        "最小化到托盘",
+        "退出启动器"
     };
 
     public string DownloadSourceDescription => GetSelectedDownloadSource().ToDescription();
@@ -57,6 +79,15 @@ public sealed partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial int SelectedDownloadSourceIndex { get; set; }
+
+    [ObservableProperty]
+    public partial int SelectedCloseActionIndex { get; set; }
+
+    [ObservableProperty]
+    public partial int SelectedGameLaunchActionIndex { get; set; }
+
+    [ObservableProperty]
+    public partial bool RestoreAfterGameExit { get; set; }
 
     [RelayCommand]
     private async Task BrowseGameDirectoryAsync()
@@ -95,6 +126,9 @@ public sealed partial class SettingsViewModel : ViewModelBase
             ? "zh-CN"
             : Session.Settings.Language;
         Session.Settings.DownloadSource = GetSelectedDownloadSource();
+        Session.Settings.CloseAction = GetSelectedCloseAction();
+        Session.Settings.OnGameLaunchAction = GetSelectedGameLaunchAction();
+        Session.Settings.RestoreAfterGameExit = RestoreAfterGameExit;
         Session.RefreshDownloadSourceText();
 
         if (!_settingsService.TrySave(Session.Settings, out var error))
@@ -120,10 +154,32 @@ public sealed partial class SettingsViewModel : ViewModelBase
             ? DownloadSourceKind.BmclApi
             : DownloadSourceKind.Official;
 
+    private LauncherCloseAction GetSelectedCloseAction()
+        => SelectedCloseActionIndex == 1
+            ? LauncherCloseAction.Exit
+            : LauncherCloseAction.MinimizeToTray;
+
+    private GameLaunchWindowAction GetSelectedGameLaunchAction()
+        => SelectedGameLaunchActionIndex switch
+        {
+            1 => GameLaunchWindowAction.MinimizeToTray,
+            2 => GameLaunchWindowAction.CloseLauncher,
+            _ => GameLaunchWindowAction.None
+        };
+
     partial void OnSelectedDownloadSourceIndexChanged(int value)
     {
         OnPropertyChanged(nameof(DownloadSourceDescription));
         Session.Settings.DownloadSource = GetSelectedDownloadSource();
         Session.RefreshDownloadSourceText();
     }
+
+    partial void OnSelectedCloseActionIndexChanged(int value)
+        => Session.Settings.CloseAction = GetSelectedCloseAction();
+
+    partial void OnSelectedGameLaunchActionIndexChanged(int value)
+        => Session.Settings.OnGameLaunchAction = GetSelectedGameLaunchAction();
+
+    partial void OnRestoreAfterGameExitChanged(bool value)
+        => Session.Settings.RestoreAfterGameExit = value;
 }

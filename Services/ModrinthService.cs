@@ -134,12 +134,15 @@ public sealed class ModrinthService : IDisposable
     /// Facets sent to <c>/v2/search</c>: mods only, exact game version and the
     /// selected loader category.
     /// </summary>
-    public static string BuildFacetJson(string minecraftVersion, ModLoaderKind loaderKind)
+    public static string BuildFacetJson(
+        string minecraftVersion,
+        ModLoaderKind loaderKind,
+        string? category = null)
     {
         var loader = GetLoaderName(loaderKind)
             ?? throw new InvalidOperationException("原版或 OptiFine 版本不支持 Modrinth 模组。");
 
-        var facets = new[]
+        var facets = new List<string[]>
         {
             new[] { "project_type:mod" },
             new[] { "versions:" + minecraftVersion.Trim() },
@@ -147,12 +150,16 @@ public sealed class ModrinthService : IDisposable
             new[] { "client_side:required", "client_side:optional" }
         };
 
+        if (!string.IsNullOrWhiteSpace(category))
+            facets.Add(new[] { "categories:" + category.Trim() });
+
         return JsonSerializer.Serialize(facets);
     }
 
     /// <summary>
     /// Searches Modrinth for mods compatible with the version and loader.
-    /// An empty query returns the most relevant results.
+    /// An empty query returns the most relevant results. The optional category
+    /// uses Modrinth's own category slugs (technology, magic, utility, ...).
     /// </summary>
     public async Task<ModrinthSearchResult> SearchAsync(
         string minecraftVersion,
@@ -160,9 +167,10 @@ public sealed class ModrinthService : IDisposable
         string query,
         int offset = 0,
         int limit = 20,
+        string? category = null,
         CancellationToken cancellationToken = default)
     {
-        var facets = BuildFacetJson(minecraftVersion, loaderKind);
+        var facets = BuildFacetJson(minecraftVersion, loaderKind, category);
         var url =
             $"{ApiBase}/search?query={Uri.EscapeDataString(query?.Trim() ?? string.Empty)}" +
             $"&limit={Math.Clamp(limit, 1, 50)}&offset={Math.Max(0, offset)}&index=relevance" +

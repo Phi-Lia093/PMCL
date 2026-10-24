@@ -1,6 +1,10 @@
+using System;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform;
+using Avalonia.Threading;
 using PMCL.Services;
 using PMCL.ViewModels;
 using PMCL.Views;
@@ -9,6 +13,10 @@ namespace PMCL;
 
 public partial class App : Application
 {
+    private MainWindow? _mainWindow;
+    private TrayIcon? _trayIcon;
+    private NativeMenuItem? _trayCloseGameItem;
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -35,10 +43,14 @@ public partial class App : Application
                 DataContext = viewModel
             };
             mainWindow = window;
+            _mainWindow = window;
 
             desktop.MainWindow = window;
+            CreateTrayIcon(session);
+
             desktop.ShutdownRequested += (_, _) =>
             {
+                DisposeTrayIcon();
                 viewModel.FlushPendingSettings();
                 settingsService.SaveSilently(session.Settings);
             };
@@ -57,5 +69,109 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// Adds the notification-area icon that keeps the launcher reachable while
+    /// it is minimized to the tray. Platforms without tray support simply skip it.
+    /// </summary>
+    private void CreateTrayIcon(LauncherSession session)
+    {
+        if (_trayIcon is not null)
+            return;
+
+        try
+        {
+            var showItem = new NativeMenuItem("显示启动器");
+            showItem.Click += (_, _) => Dispatcher.UIThread.Post(ShowMainWindow);
+
+            var hideItem = new NativeMenuItem("隐藏到托盘");
+            hideItem.Click += (_, _) => Dispatcher.UIThread.Post(() => _mainWindow?.HideToTray());
+
+            _trayCloseGameItem = new NativeMenuItem("结束游戏")
+            {
+                IsEnabled = false
+            };
+            _trayCloseGameItem.Click += (_, _) => Dispatcher.UIThread.Post(() =>
+            {
+                ShowMainWindow();
+                session.ShowGameClosePromptCommand.Execute(null);
+            });
+
+            var exitItem = new NativeMenuItem("退出 PMCL");
+            exitItem.Click += (_, _) => Dispatcher.UIThread.Post(ExitApplication);
+
+            var menu = new NativeMenu();
+            menu.Add(showItem);
+            menu.Add(hideItem);
+            menu.Add(_trayCloseGameItem);
+            menu.Add(new NativeMenuItemSeparator());
+            menu.Add(exitItem);
+
+            var trayIcon = new TrayIcon
+            {
+                ToolTipText = "PMCL - Philia093's MineCraft Launcher",
+                Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://PMCL/Assets/avalonia-logo.ico"))),
+                Menu = menu,
+                IsVisible = true
+            };
+
+            trayIcon.Clicked += (_, _) => Dispatcher.UIThread.Post(ShowMainWindow);
+
+            session.GameStarted += (_, args) => Dispatcher.UIThread.Post(() =>
+            {
+                trayIcon.ToolTipText = $"PMCL - Minecraft {args.VersionName} 运行中";
+                if (_trayCloseGameItem is not null)
+                    _trayCloseGameItem.IsEnabled = true;
+            });
+
+            session.GameExited += (_, _) => Dispatcher.UIThread.Post(() =>
+            {
+                trayIcon.ToolTipText = "PMCL - Philia093's MineCraft Launcher";
+                if (_trayCloseGameItem is not null)
+                    _trayCloseGameItem.IsEnabled = false;
+            });
+
+            TrayIcon.SetIcons(this, new TrayIcons { trayIcon });
+            _trayIcon = trayIcon;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"托盘图标初始化失败：{ex}");
+            _trayIcon = null;
+        }
+    }
+
+    private void ShowMainWindow()
+    {
+        if (_mainWindow is null)
+            return;
+
+        _mainWindow.ShowFromTray();
+        _mainWindow.Activate();
+    }
+
+    private void ExitApplication()
+    {
+        if (_mainWindow is not null)
+        {
+            _mainWindow.ExitApplication();
+            return;
+        }
+
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.TryShutdown();
+    }
+
+    private void DisposeTrayIcon()
+    {
+        if (_trayIcon is null)
+            return;
+
+        _trayIcon.IsVisible = false;
+        _trayIcon.Dispose();
+        _trayIcon = null;
+        _trayCloseGameItem = null;
+        TrayIcon.SetIcons(this, new TrayIcons());
     }
 }

@@ -196,6 +196,8 @@ D:\PMCL
 - 版本重命名不支持“仅修改大小写”，且会重写该版本 json（保留结构但会格式化）；依赖外部硬编码旧版本名的第三方文件需自行调整。
 - 模组加载器安装依赖网络与官方 Maven / Fabric Meta / OptiFine 官方页；BMCLAPI 仅为可选加速源，官方源可独立完成全部安装。Forge 自动安装支持 1.12.2+，NeoForge 支持官方目录中存在的版本（通常 1.20.2+），OptiFine 仅列出官方稳定 HD U 版本。
 - Forge / NeoForge 的安装器 processors 由 CmlLib 安装引擎启动 Java；正式安装时可能出现短暂的 Java 控制台窗口，这是第三方安装引擎行为，自动测试不会真正执行 processors。
+- Forge / NeoForge 的 `install_profile.json` 只负责安装安装器与 processor 依赖；最终 `version.json` 可能额外引用启动所需的库（旧 Forge 如 1.12.2 的 launchwrapper、ASM、Scala、Log4j）。安装流程在 installer 完成后必须再调用一次 CmlLib 的版本安装，启动前还必须校验 classpath，缺失时自动补全，否则 JVM 会以“找不到主类”立即退出。
+- 启动 Java 由版本元数据的 `javaVersion` 决定：1.17、1.18–1.20.4、1.20.5+ 分别使用对应 Mojang 运行时；没有有效 `javaVersion` 的旧版本（如 1.6.1 及更早的 Alpha / Beta）固定使用 `jre-legacy`（Java 8）。运行时不存在时由 CmlLib 自动下载，不能用系统里最新的 Java 代替旧版运行时。
 - 同一原版版本只保留一个模组加载器；安装/更换会删除该原版下其他加载器版本，因此 OptiFine 当前不能与 Forge/Fabric/NeoForge 叠加。切换加载器会先复制旧加载器的存档 / 模组 / 配置到新加载器目录，不会随旧文件夹删除。
 - 版本隔离只拆分游戏数据，`libraries`、`assets`、`runtime` 与版本元数据始终共享；不同版本不会各自下载一份依赖，因此删除共享目录中的资源会影响所有版本。
 - 旧版共享布局升级到强制隔离布局时不会自动移动文件（避免把存档复制多份）；需要在版本设置点击「导入旧共享数据」手动迁移。删除版本会连同其私有存档 / 截图 / 模组一起删除，UI 已提示。
